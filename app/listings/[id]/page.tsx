@@ -124,3 +124,8 @@ export default function ListingDetails() {
     </section>
   )
 }
+
+const [inquiryMessage, setInquiryMessage] = useState('')
+const [sending, setSending] = useState(false)
+const [inquiryResult, setInquiryResult] = useState('')
+
