@@ -1,282 +1,264 @@
 
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 
-type Listing = {
+type Inquiry = {
   id: string
-  title: string
+  listing_id: string
+  investor_id: string
+  message: string | null
   status: string
   created_at: string
 }
 
-export default function Dashboard() {
-  const router = useRouter()
-  const [email, setEmail] = useState('')
-  const [userId, setUserId] = useState('')
-  const [items, setItems] = useState<Listing[]>([])
+type Listing = {
+  id: string
+  title: string
+}
+
+export default function InvestorInquiries() {
+  const [inquiries, setInquiries] = useState<Inquiry[]>([])
+  const [listings, setListings] = useState<Listing[]>([])
   const [loading, setLoading] = useState(true)
-  const [busyId, setBusyId] = useState<string | null>(null)
   const [message, setMessage] = useState('')
+  const [updatingId, setUpdatingId] = useState<string | null>(null)
 
-  const load = useCallback(async () => {
-    if (!supabase) {
-      setMessage('Supabase is not configured.')
-      setLoading(false)
-      return
-    }
+  useEffect(() => {
+    let active = true
 
-    setLoading(true)
-
-    try {
-      const { data: { user }, error: authError } =
-        await supabase.auth.getUser()
-
-      if (authError || !user) {
-        router.replace('/login')
+    async function load() {
+      if (!supabase) {
+        if (active) {
+          setMessage('Supabase is not configured.')
+          setLoading(false)
+        }
         return
       }
 
-      setEmail(user.email || '')
-      setUserId(user.id)
+      const client = supabase
+      const { data: authData, error: authError } =
+        await client.auth.getUser()
 
-      const { data, error } = await supabase
+      if (!active) return
+
+      if (authError || !authData.user) {
+        setMessage('Please sign in to view inquiries.')
+        setLoading(false)
+        return
+      }
+
+      const { data: owned, error: listingError } = await client
         .from('listings')
-        .select('id,title,status,created_at')
-        .eq('owner_id', user.id)
+        .select('id,title')
+        .eq('owner_id', authData.user.id)
+
+      if (!active) return
+
+      if (listingError) {
+        setMessage(listingError.message)
+        setLoading(false)
+        return
+      }
+
+      const ownedListings = (owned || []) as Listing[]
+      setListings(ownedListings)
+
+      if (ownedListings.length === 0) {
+        setLoading(false)
+        return
+      }
+
+      const ids = ownedListings.map(item => item.id)
+
+      const { data, error } = await client
+        .from('inquiries')
+        .select('id,listing_id,investor_id,message,status,created_at')
+        .in('listing_id', ids)
         .order('created_at', { ascending: false })
 
-      if (error) throw error
+      if (!active) return
 
-      setItems(data || [])
-      setMessage('')
-    } catch (err) {
-      setMessage(
-        err instanceof Error ? err.message : 'Failed to load listings.'
-      )
-    } finally {
+      if (error) {
+        setMessage(error.message)
+      } else {
+        setInquiries((data || []) as Inquiry[])
+      }
+
       setLoading(false)
     }
-  }, [router])
 
-  useEffect(() => {
-    void load()
-  }, [load])
+    load()
 
-  async function changeStatus(id: string, status: string) {
-    if (!supabase || !userId) return
+    return () => {
+      active = false
+    }
+  }, [])
 
-    setBusyId(id)
+  async function updateStatus(id: string, status: string) {
+    if (!supabase || updatingId) return
+
+    setUpdatingId(id)
     setMessage('')
 
-    try {
-      const { data, error } = await supabase
-        .from('listings')
-        .update({ status })
-        .eq('id', id)
-        .eq('owner_id', userId)
-        .select('id')
+    const { data, error } = await supabase
+      .from('inquiries')
+      .update({ status })
+      .eq('id', id)
+      .select('id,status')
+      .single()
 
-      if (error) throw error
-      if (!data?.length) throw new Error('Update was not permitted.')
-
-      setItems(prev =>
-        prev.map(item =>
-          item.id === id ? { ...item, status } : item
-        )
-      )
-      setMessage(`Opportunity status updated to ${status}.`)
-    } catch (err) {
-      setMessage(
-        err instanceof Error ? err.message : 'Update failed.'
-      )
-    } finally {
-      setBusyId(null)
-    }
-  }
-
-  async function deleteListing(id: string) {
-    if (!supabase || !userId) return
-
-    if (!window.confirm('Delete this opportunity permanently?')) {
-      return
-    }
-
-    setBusyId(id)
-    setMessage('')
-
-    try {
-      const { data, error } = await supabase
-        .from('listings')
-        .delete()
-        .eq('id', id)
-        .eq('owner_id', userId)
-        .select('id')
-
-      if (error) throw error
-      if (!data?.length) throw new Error('Delete was not permitted.')
-
-      setItems(prev => prev.filter(item => item.id !== id))
-      setMessage('Opportunity deleted successfully.')
-    } catch (err) {
-      setMessage(
-        err instanceof Error ? err.message : 'Delete failed.'
-      )
-    } finally {
-      setBusyId(null)
-    }
-  }
-
-  async function signOut() {
-    if (!supabase) return
-    const { error } = await supabase.auth.signOut()
     if (error) {
       setMessage(error.message)
-      return
+    } else if (data) {
+      setInquiries(current =>
+        current.map(item =>
+          item.id === id
+            ? { ...item, status: data.status }
+            : item
+        )
+      )
+      setMessage('Inquiry status updated successfully.')
     }
-    router.replace('/login')
-    router.refresh()
+
+    setUpdatingId(null)
   }
 
-  const published = items.filter(
-    item => item.status === 'published'
+  const getListingTitle = (id: string) =>
+    listings.find(item => item.id === id)?.title ||
+    'Unknown opportunity'
+
+  const pending = inquiries.filter(
+    item => item.status === 'pending'
   ).length
 
-  const drafts = items.filter(
-    item => item.status === 'draft'
+  const contacted = inquiries.filter(
+    item => item.status === 'contacted'
   ).length
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-wrap justify-between items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-bold">
-            My Dashboard
-          </h1>
-          <p className="text-slate-400 mt-2">{email}</p>
-        </div>
-
-        <Link href="/listings/new" className="btn">
-          + New Opportunity
+    <section className="space-y-8 py-8">
+      <div className="space-y-3">
+        <Link href="/dashboard" className="text-amber-300">
+          ← Back to Dashboard
         </Link>
-      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="card">
-          <p className="text-slate-400">Total Opportunities</p>
-          <h2 className="text-3xl font-bold mt-2">
-            {items.length}
-          </h2>
-        </div>
+        <h1 className="text-3xl font-bold">
+          Investor Inquiries
+        </h1>
 
-        <div className="card">
-          <p className="text-slate-400">Published</p>
-          <h2 className="text-3xl font-bold mt-2 text-green-400">
-            {published}
-          </h2>
-        </div>
-
-        <div className="card">
-          <p className="text-slate-400">Drafts</p>
-          <h2 className="text-3xl font-bold mt-2 text-yellow-400">
-            {drafts}
-          </h2>
-        </div>
-      </div>
-
-      <h2 className="text-2xl font-bold">My Opportunities</h2>
-
-      {message && (
-        <p role="status" className="text-yellow-300">
-          {message}
+        <p className="text-slate-300">
+          Manage investor interest in your opportunities.
         </p>
-      )}
+      </div>
 
       {loading ? (
-        <p>Loading opportunities...</p>
-      ) : items.length === 0 ? (
-        <div className="card">
-          <p>No opportunities found.</p>
-          <Link href="/listings/new" className="btn mt-4">
-            Create Your First Opportunity
-          </Link>
-        </div>
+        <p>Loading inquiries...</p>
       ) : (
-        <div className="space-y-4">
-          {items.map(item => (
-            <div className="card" key={item.id}>
-              <div className="flex flex-wrap justify-between gap-4">
-                <div>
-                  <h3 className="text-xl font-bold">
-                    {item.title}
-                  </h3>
-                  <p className="mt-2">
-                    Status:{' '}
-                    <span className={
-                      item.status === 'published'
-                        ? 'text-green-400'
-                        : 'text-yellow-400'
-                    }>
-                      {item.status}
-                    </span>
-                  </p>
-                  <p className="text-sm text-slate-400 mt-2">
-                    Created: {new Date(
-                      item.created_at
-                    ).toLocaleDateString()}
+        <>
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="card">
+              <p className="text-slate-400">Total Inquiries</p>
+              <p className="text-3xl font-bold">
+                {inquiries.length}
+              </p>
+            </div>
+
+            <div className="card">
+              <p className="text-slate-400">Pending</p>
+              <p className="text-3xl font-bold text-amber-300">
+                {pending}
+              </p>
+            </div>
+
+            <div className="card">
+              <p className="text-slate-400">Contacted</p>
+              <p className="text-3xl font-bold text-green-400">
+                {contacted}
+              </p>
+            </div>
+          </div>
+
+          {message && (
+            <p role="status" className="text-amber-300">
+              {message}
+            </p>
+          )}
+
+          {inquiries.length === 0 && (
+            <div className="card">
+              <p className="text-slate-300">
+                No investor inquiries yet.
+              </p>
+            </div>
+          )}
+
+          <div className="space-y-4">
+            {inquiries.map(inquiry => (
+              <div
+                key={inquiry.id}
+                className="card space-y-4"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <h2 className="text-xl font-bold">
+                      {getListingTitle(inquiry.listing_id)}
+                    </h2>
+
+                    <p className="mt-2 text-sm text-slate-400">
+                      Received:{' '}
+                      {new Date(inquiry.created_at)
+                        .toLocaleDateString('en-US')}
+                    </p>
+
+                    <p className="mt-1 text-sm text-slate-400">
+                      Investor ID: {inquiry.investor_id}
+                    </p>
+                  </div>
+
+                  <span className="rounded-full bg-slate-700 px-4 py-2 text-sm">
+                    {inquiry.status}
+                  </span>
+                </div>
+
+                <div className="border-t border-slate-700 pt-4">
+                  <p className="whitespace-pre-wrap text-slate-300">
+                    {inquiry.message || 'No message provided.'}
                   </p>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-3">
-                  {item.status === 'draft' && (
-                    <button
-                      disabled={busyId !== null}
-                      onClick={() =>
-                        changeStatus(item.id, 'published')
-                      }
-                    >
-                      Publish
-                    </button>
-                  )}
-
-                  {item.status === 'published' && (
-                    <button
-                      disabled={busyId !== null}
-                      onClick={() =>
-                        changeStatus(item.id, 'draft')
-                      }
-                    >
-                      Unpublish
-                    </button>
-                  )}
-
-                  <Link
-                    href={`/listings/${item.id}/edit`}
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="button"
                     className="btn"
+                    disabled={updatingId !== null}
+                    onClick={() =>
+                      updateStatus(inquiry.id, 'contacted')
+                    }
                   >
-                    Edit
-                  </Link>
+                    {updatingId === inquiry.id
+                      ? 'Saving...'
+                      : 'Mark Contacted'}
+                  </button>
 
                   <button
-                    disabled={busyId !== null}
-                    onClick={() => deleteListing(item.id)}
-                    className="!bg-red-600 !text-white"
+                    type="button"
+                    className="rounded-lg border border-slate-600 px-4 py-2"
+                    disabled={updatingId !== null}
+                    onClick={() =>
+                      updateStatus(inquiry.id, 'closed')
+                    }
                   >
-                    Delete
+                    Close Inquiry
                   </button>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        </>
       )}
-
-      <div className="pt-6 border-t border-slate-700">
-        <button onClick={signOut}>Sign Out</button>
-      </div>
-    </div>
+    </section>
   )
 }
