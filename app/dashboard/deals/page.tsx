@@ -23,8 +23,21 @@ export default function DealsPage() {
 
   useEffect(() => {
     async function loadDeals() {
+      setLoading(true);
+      setError("");
+
+      // Check Supabase connection
+      const client = supabase;
+
+      if (!client) {
+        setError("Supabase connection is not available.");
+        setLoading(false);
+        return;
+      }
+
+      // Check logged-in user
       const { data: authData, error: authError } =
-        await supabase.auth.getUser();
+        await client.auth.getUser();
 
       if (authError || !authData.user) {
         setError("Please log in to view your deals.");
@@ -32,7 +45,8 @@ export default function DealsPage() {
         return;
       }
 
-      const { data, error: dealsError } = await supabase
+      // Fetch deals permitted by Supabase RLS
+      const { data, error: dealsError } = await client
         .from("deals")
         .select(
           "id, conversation_id, amount, currency, status, commission_rate, commission_amount, created_at"
@@ -68,8 +82,12 @@ export default function DealsPage() {
     0
   );
 
-  const currencies = [...new Set(deals.map((deal) => deal.currency))];
-  const oneCurrency = currencies.length === 1 ? currencies[0] : null;
+  const currencies = [
+    ...new Set(deals.map((deal) => deal.currency)),
+  ];
+
+  const oneCurrency =
+    currencies.length === 1 ? currencies[0] : null;
 
   return (
     <main
@@ -83,12 +101,21 @@ export default function DealsPage() {
       <div style={{ maxWidth: 1050, margin: "0 auto" }}>
         <Link
           href="/dashboard"
-          style={{ color: "#e2b365", textDecoration: "none" }}
+          style={{
+            color: "#e2b365",
+            textDecoration: "none",
+          }}
         >
           ← Back to Dashboard
         </Link>
 
-        <h1 style={{ fontSize: 32, marginTop: 15 }}>
+        <h1
+          style={{
+            fontSize: 32,
+            marginTop: 15,
+            fontWeight: "bold",
+          }}
+        >
           Nexus Deals & Commissions
         </h1>
 
@@ -97,9 +124,19 @@ export default function DealsPage() {
         </p>
 
         {loading ? (
-          <p>Loading deals...</p>
+          <p style={{ marginTop: 30 }}>
+            Loading deals...
+          </p>
         ) : error ? (
-          <p style={{ color: "#ff9292" }}>{error}</p>
+          <div
+            style={{
+              ...cardStyle,
+              marginTop: 30,
+              color: "#ff9292",
+            }}
+          >
+            {error}
+          </div>
         ) : (
           <>
             <div
@@ -112,30 +149,55 @@ export default function DealsPage() {
               }}
             >
               <div style={cardStyle}>
-                <p>Total Deals</p>
-                <h2>{deals.length}</h2>
+                <p style={{ color: "#9db8d9" }}>
+                  Total Deals
+                </p>
+                <h2 style={{ fontSize: 30 }}>
+                  {deals.length}
+                </h2>
               </div>
 
               <div style={cardStyle}>
-                <p>Total Deal Value</p>
-                <h2>
-                  {oneCurrency
+                <p style={{ color: "#9db8d9" }}>
+                  Total Deal Value
+                </p>
+                <h2 style={{ fontSize: 26 }}>
+                  {deals.length === 0
+                    ? "0"
+                    : oneCurrency
                     ? `${totalValue.toLocaleString()} ${oneCurrency}`
                     : "Multiple currencies"}
                 </h2>
               </div>
 
               <div style={cardStyle}>
-                <p>Calculated Commission</p>
-                <h2 style={{ color: "#e2b365" }}>
-                  {oneCurrency
+                <p style={{ color: "#9db8d9" }}>
+                  Calculated Commission
+                </p>
+                <h2
+                  style={{
+                    color: "#e2b365",
+                    fontSize: 26,
+                  }}
+                >
+                  {deals.length === 0
+                    ? "0"
+                    : oneCurrency
                     ? `${totalCommission.toLocaleString()} ${oneCurrency}`
                     : "Multiple currencies"}
                 </h2>
               </div>
             </div>
 
-            <h2 style={{ marginTop: 35 }}>Deal Records</h2>
+            <h2
+              style={{
+                marginTop: 35,
+                marginBottom: 18,
+                fontSize: 24,
+              }}
+            >
+              Deal Records
+            </h2>
 
             {deals.length === 0 ? (
               <div style={cardStyle}>
@@ -144,22 +206,48 @@ export default function DealsPage() {
                 </p>
               </div>
             ) : (
-              <div style={{ display: "grid", gap: 16 }}>
+              <div
+                style={{
+                  display: "grid",
+                  gap: 16,
+                }}
+              >
                 {deals.map((deal) => (
-                  <div key={deal.id} style={cardStyle}>
-                    <h3>
-                      {Number(deal.amount).toLocaleString()}{" "}
+                  <div
+                    key={deal.id}
+                    style={cardStyle}
+                  >
+                    <h3
+                      style={{
+                        fontSize: 24,
+                        marginBottom: 12,
+                      }}
+                    >
+                      {Number(
+                        deal.amount
+                      ).toLocaleString()}{" "}
                       {deal.currency}
                     </h3>
 
-                    <p>Status: {deal.status}</p>
-
                     <p>
-                      Commission Rate:{" "}
-                      {Number(deal.commission_rate) * 100}%
+                      Status:{" "}
+                      <strong>{deal.status}</strong>
                     </p>
 
-                    <p style={{ color: "#e2b365" }}>
+                    <p style={{ marginTop: 10 }}>
+                      Commission Rate:{" "}
+                      {Number(
+                        deal.commission_rate
+                      ) * 100}
+                      %
+                    </p>
+
+                    <p
+                      style={{
+                        color: "#e2b365",
+                        marginTop: 10,
+                      }}
+                    >
                       Calculated Commission:{" "}
                       {Number(
                         deal.commission_amount
@@ -167,7 +255,12 @@ export default function DealsPage() {
                       {deal.currency}
                     </p>
 
-                    <p style={{ color: "#9db8d9" }}>
+                    <p
+                      style={{
+                        color: "#9db8d9",
+                        marginTop: 10,
+                      }}
+                    >
                       Created:{" "}
                       {new Date(
                         deal.created_at
@@ -176,7 +269,11 @@ export default function DealsPage() {
 
                     <Link
                       href={`/dashboard/messages/${deal.conversation_id}`}
-                      style={{ color: "#e2b365" }}
+                      style={{
+                        display: "inline-block",
+                        color: "#e2b365",
+                        marginTop: 15,
+                      }}
                     >
                       Open Conversation →
                     </Link>
@@ -184,6 +281,18 @@ export default function DealsPage() {
                 ))}
               </div>
             )}
+
+            <p
+              style={{
+                color: "#7792b4",
+                marginTop: 30,
+                fontSize: 13,
+              }}
+            >
+              Commission calculations are informational
+              only. Payment obligations require a
+              separately approved agreement.
+            </p>
           </>
         )}
       </div>
