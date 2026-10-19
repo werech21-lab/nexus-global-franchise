@@ -1,8 +1,9 @@
 
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 
 type Inquiry = {
@@ -19,85 +20,169 @@ type Listing = {
   title: string
 }
 
+type Conversation = {
+  id: string
+  inquiry_id: string
+}
+
 export default function InvestorInquiries() {
+  const router = useRouter()
+
   const [inquiries, setInquiries] = useState<Inquiry[]>([])
   const [listings, setListings] = useState<Listing[]>([])
+  const [conversations, setConversations] = useState<
+    Conversation[]
+  >([])
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState('')
-  const [updatingId, setUpdatingId] = useState<string | null>(null)
+  const [updatingId, setUpdatingId] = useState<string | null>(
+    null
+  )
 
-  useEffect(() => {
-    let active = true
+  const load = useCallback(async () => {
+    if (!supabase) {
+      setMessage('Supabase is not configured.')
+      setLoading(false)
+      return
+    }
 
-    async function load() {
-      if (!supabase) {
-        if (active) {
-          setMessage('Supabase is not configured.')
-          setLoading(false)
-        }
-        return
-      }
+    setLoading(true)
+    setMessage('')
 
-      const client = supabase
-      const { data: authData, error: authError } =
-        await client.auth.getUser()
+    const client = supabase
 
-      if (!active) return
+    const { data: authData, error: authError } =
+      await client.auth.getUser()
 
-      if (authError || !authData.user) {
-        setMessage('Please sign in to view inquiries.')
-        setLoading(false)
-        return
-      }
+    if (authError || !authData.user) {
+      setMessage('Please sign in to view inquiries.')
+      setLoading(false)
+      return
+    }
 
-      const { data: owned, error: listingError } = await client
+    const { data: owned, error: listingError } =
+      await client
         .from('listings')
         .select('id,title')
         .eq('owner_id', authData.user.id)
 
-      if (!active) return
-
-      if (listingError) {
-        setMessage(listingError.message)
-        setLoading(false)
-        return
-      }
-
-      const ownedListings = (owned || []) as Listing[]
-      setListings(ownedListings)
-
-      if (ownedListings.length === 0) {
-        setLoading(false)
-        return
-      }
-
-      const ids = ownedListings.map(item => item.id)
-
-      const { data, error } = await client
-        .from('inquiries')
-        .select('id,listing_id,investor_id,message,status,created_at')
-        .in('listing_id', ids)
-        .order('created_at', { ascending: false })
-
-      if (!active) return
-
-      if (error) {
-        setMessage(error.message)
-      } else {
-        setInquiries((data || []) as Inquiry[])
-      }
-
+    if (listingError) {
+      setMessage(listingError.message)
       setLoading(false)
+      return
     }
 
-    load()
+    const ownedListings = (owned || []) as Listing[]
+    setListings(ownedListings)
 
-    return () => {
-      active = false
+    if (ownedListings.length === 0) {
+      setInquiries([])
+      setConversations([])
+      setLoading(false)
+      return
     }
+
+    const ids = ownedListings.map(item => item.id)
+
+    const { data, error } = await client
+      .from('inquiries')
+      .select(
+        'id,listing_id,investor_id,message,status,created_at'
+      )
+      .in('listing_id', ids)
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      setMessage(error.message)
+      setLoading(false)
+      return
+    }
+
+    const loadedInquiries = (data || []) as Inquiry[]
+    setInquiries(loadedInquiries)
+
+    if (loadedInquiries.length > 0) {
+      const { data: chats, error: chatsError } =
+        await client
+          .from('conversations')
+          .select('id,inquiry_id')
+          .in(
+            'inquiry_id',
+            loadedInquiries.map(item => item.id)
+          )
+
+      if (chatsError) {
+        setMessage(chatsError.message)
+      } else {
+        setConversations(
+          (chats || []) as Conversation[]
+        )
+      }
+    } else {
+      setConversations([])
+    }
+
+    setLoading(false)
   }, [])
 
-  async function updateStatus(id: string, status: string) {
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  async function acceptAndOpenChat(id: string) {
+    if (!supabase || updatingId) return
+
+    setUpdatingId(id)
+    setMessage('')
+
+    try {
+      const { data, error } = await supabase.rpc(
+        'accept_inquiry',
+        { p_inquiry_id: id }
+      )
+
+      if (error) {
+        throw error
+      }
+
+      if (typeof data !== 'string' || !data) {
+        throw new Error(
+          'Conversation could not be created.'
+        )
+      }
+
+      setInquiries(current =>
+        current.map(item =>
+          item.id === id
+            ? { ...item, status: 'contacted' }
+            : item
+        )
+      )
+
+      setConversations(current => {
+        const filtered = current.filter(
+          item => item.inquiry_id !== id
+        )
+
+        return [
+          ...filtered,
+          { id: data, inquiry_id: id }
+        ]
+      })
+
+      router.push(`/dashboard/messages/${data}`)
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : 'Unable to open conversation.'
+      )
+    } finally {
+      setUpdatingId(null)
+    }
+  }
+
+  async function closeInquiry(id: string) {
     if (!supabase || updatingId) return
 
     setUpdatingId(id)
@@ -105,7 +190,7 @@ export default function InvestorInquiries() {
 
     const { data, error } = await supabase
       .from('inquiries')
-      .update({ status })
+      .update({ status: 'closed' })
       .eq('id', id)
       .select('id,status')
       .single()
@@ -120,7 +205,8 @@ export default function InvestorInquiries() {
             : item
         )
       )
-      setMessage('Inquiry status updated successfully.')
+
+      setMessage('Inquiry closed successfully.')
     }
 
     setUpdatingId(null)
@@ -131,7 +217,9 @@ export default function InvestorInquiries() {
     'Unknown opportunity'
 
   const pending = inquiries.filter(
-    item => item.status === 'pending'
+    item =>
+      item.status === 'pending' ||
+      item.status === 'new'
   ).length
 
   const contacted = inquiries.filter(
@@ -141,7 +229,10 @@ export default function InvestorInquiries() {
   return (
     <section className="space-y-8 py-8">
       <div className="space-y-3">
-        <Link href="/dashboard" className="text-amber-300">
+        <Link
+          href="/dashboard"
+          className="text-amber-300"
+        >
           ← Back to Dashboard
         </Link>
 
@@ -150,7 +241,8 @@ export default function InvestorInquiries() {
         </h1>
 
         <p className="text-slate-300">
-          Manage investor interest in your opportunities.
+          Manage investor interest and secure
+          conversations.
         </p>
       </div>
 
@@ -160,21 +252,27 @@ export default function InvestorInquiries() {
         <>
           <div className="grid gap-4 md:grid-cols-3">
             <div className="card">
-              <p className="text-slate-400">Total Inquiries</p>
+              <p className="text-slate-400">
+                Total Inquiries
+              </p>
               <p className="text-3xl font-bold">
                 {inquiries.length}
               </p>
             </div>
 
             <div className="card">
-              <p className="text-slate-400">Pending</p>
+              <p className="text-slate-400">
+                Pending
+              </p>
               <p className="text-3xl font-bold text-amber-300">
                 {pending}
               </p>
             </div>
 
             <div className="card">
-              <p className="text-slate-400">Contacted</p>
+              <p className="text-slate-400">
+                Contacted
+              </p>
               <p className="text-3xl font-bold text-green-400">
                 {contacted}
               </p>
@@ -182,7 +280,10 @@ export default function InvestorInquiries() {
           </div>
 
           {message && (
-            <p role="status" className="text-amber-300">
+            <p
+              role="status"
+              className="text-amber-300"
+            >
               {message}
             </p>
           )}
@@ -196,66 +297,91 @@ export default function InvestorInquiries() {
           )}
 
           <div className="space-y-4">
-            {inquiries.map(inquiry => (
-              <div
-                key={inquiry.id}
-                className="card space-y-4"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div>
-                    <h2 className="text-xl font-bold">
-                      {getListingTitle(inquiry.listing_id)}
-                    </h2>
+            {inquiries.map(inquiry => {
+              const chat = conversations.find(
+                item =>
+                  item.inquiry_id === inquiry.id
+              )
 
-                    <p className="mt-2 text-sm text-slate-400">
-                      Received:{' '}
-                      {new Date(inquiry.created_at)
-                        .toLocaleDateString('en-US')}
-                    </p>
+              return (
+                <div
+                  key={inquiry.id}
+                  className="card space-y-4"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                      <h2 className="text-xl font-bold">
+                        {getListingTitle(
+                          inquiry.listing_id
+                        )}
+                      </h2>
 
-                    <p className="mt-1 text-sm text-slate-400">
-                      Investor ID: {inquiry.investor_id}
+                      <p className="mt-2 text-sm text-slate-400">
+                        Received:{' '}
+                        {new Date(
+                          inquiry.created_at
+                        ).toLocaleDateString('en-US')}
+                      </p>
+
+                      <p className="mt-1 text-sm text-slate-400">
+                        Investor ID:{' '}
+                        {inquiry.investor_id}
+                      </p>
+                    </div>
+
+                    <span className="rounded-full bg-slate-700 px-4 py-2 text-sm">
+                      {inquiry.status}
+                    </span>
+                  </div>
+
+                  <div className="border-t border-slate-700 pt-4">
+                    <p className="whitespace-pre-wrap text-slate-300">
+                      {inquiry.message ||
+                        'No message provided.'}
                     </p>
                   </div>
 
-                  <span className="rounded-full bg-slate-700 px-4 py-2 text-sm">
-                    {inquiry.status}
-                  </span>
-                </div>
+                  <div className="flex flex-wrap gap-3">
+                    {chat ? (
+                      <Link
+                        href={
+                          `/dashboard/messages/${chat.id}`
+                        }
+                        className="btn"
+                      >
+                        Open Conversation
+                      </Link>
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn"
+                        disabled={updatingId !== null}
+                        onClick={() =>
+                          acceptAndOpenChat(inquiry.id)
+                        }
+                      >
+                        {updatingId === inquiry.id
+                          ? 'Opening...'
+                          : 'Accept & Open Chat'}
+                      </button>
+                    )}
 
-                <div className="border-t border-slate-700 pt-4">
-                  <p className="whitespace-pre-wrap text-slate-300">
-                    {inquiry.message || 'No message provided.'}
-                  </p>
+                    {inquiry.status !== 'closed' && (
+                      <button
+                        type="button"
+                        className="rounded-lg border border-slate-600 px-4 py-2"
+                        disabled={updatingId !== null}
+                        onClick={() =>
+                          closeInquiry(inquiry.id)
+                        }
+                      >
+                        Close Inquiry
+                      </button>
+                    )}
+                  </div>
                 </div>
-
-                <div className="flex flex-wrap gap-3">
-                  <button
-                    type="button"
-                    className="btn"
-                    disabled={updatingId !== null}
-                    onClick={() =>
-                      updateStatus(inquiry.id, 'contacted')
-                    }
-                  >
-                    {updatingId === inquiry.id
-                      ? 'Saving...'
-                      : 'Mark Contacted'}
-                  </button>
-
-                  <button
-                    type="button"
-                    className="rounded-lg border border-slate-600 px-4 py-2"
-                    disabled={updatingId !== null}
-                    onClick={() =>
-                      updateStatus(inquiry.id, 'closed')
-                    }
-                  >
-                    Close Inquiry
-                  </button>
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </>
       )}
