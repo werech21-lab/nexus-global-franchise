@@ -5,3 +5,22 @@ input,select,textarea { background:#14243a; border:1px solid #39506b; border-rad
 button,.btn { background:#d4ac65; color:#081325; border-radius:10px; padding:11px 18px; font-weight:700; cursor:pointer; display:inline-block; }
 a { color:#eac98f; }
 .card { background:#102039; border:1px solid #29405c; border-radius:18px; padding:24px; }
+
+/* Temporary layout test */
+header nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+}
+
+header nav > div {
+  display: flex;
+  gap: 24px;
+}
+
+main {
+  max-width: 1152px;
+  margin: 0 auto;
+  padding: 32px;
+}
