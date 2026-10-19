@@ -3,262 +3,246 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-
-type Inquiry = {
-  id: string
-  listing_id: string
-  investor_id: string
-  message: string | null
-  status: string
-  created_at: string
-}
 
 type Listing = {
   id: string
   title: string
+  status: string
+  created_at: string
 }
 
-export default function InvestorInquiries() {
-  const [inquiries, setInquiries] = useState<Inquiry[]>([])
-  const [listings, setListings] = useState<Listing[]>([])
+export default function Dashboard() {
+  const router = useRouter()
+
+  const [email, setEmail] = useState('')
+  const [items, setItems] = useState<Listing[]>([])
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState('')
-  const [updatingId, setUpdatingId] = useState<string | null>(null)
+  const [busyId, setBusyId] = useState<string | null>(null)
 
   useEffect(() => {
-    let active = true
-
     async function load() {
       if (!supabase) {
-        if (active) {
-          setMessage('Supabase is not configured.')
-          setLoading(false)
-        }
+        setMessage('Supabase is not configured.')
+        setLoading(false)
         return
       }
 
       const client = supabase
-      const { data: authData, error: authError } =
-        await client.auth.getUser()
+      const { data: authData } = await client.auth.getUser()
 
-      if (!active) return
-
-      if (authError || !authData.user) {
-        setMessage('Please sign in to view inquiries.')
-        setLoading(false)
+      if (!authData.user) {
+        router.replace('/login')
         return
       }
 
-      const { data: owned, error: listingError } = await client
-        .from('listings')
-        .select('id,title')
-        .eq('owner_id', authData.user.id)
-
-      if (!active) return
-
-      if (listingError) {
-        setMessage(listingError.message)
-        setLoading(false)
-        return
-      }
-
-      const ownedListings = (owned || []) as Listing[]
-      setListings(ownedListings)
-
-      if (ownedListings.length === 0) {
-        setLoading(false)
-        return
-      }
-
-      const ids = ownedListings.map(item => item.id)
+      setEmail(authData.user.email || '')
 
       const { data, error } = await client
-        .from('inquiries')
-        .select('id,listing_id,investor_id,message,status,created_at')
-        .in('listing_id', ids)
+        .from('listings')
+        .select('id,title,status,created_at')
+        .eq('owner_id', authData.user.id)
         .order('created_at', { ascending: false })
-
-      if (!active) return
 
       if (error) {
         setMessage(error.message)
       } else {
-        setInquiries((data || []) as Inquiry[])
+        setItems(data || [])
       }
 
       setLoading(false)
     }
 
     load()
-
-    return () => {
-      active = false
-    }
-  }, [])
+  }, [router])
 
   async function updateStatus(id: string, status: string) {
-    if (!supabase || updatingId) return
+    if (!supabase) return
 
-    setUpdatingId(id)
+    setBusyId(id)
     setMessage('')
 
     const { data, error } = await supabase
-      .from('inquiries')
+      .from('listings')
       .update({ status })
       .eq('id', id)
-      .select('id,status')
+      .select('id')
       .single()
 
-    if (error) {
-      setMessage(error.message)
-    } else if (data) {
-      setInquiries(current =>
-        current.map(item =>
-          item.id === id
-            ? { ...item, status: data.status }
-            : item
+    if (error || !data) {
+      setMessage(error?.message || 'Update failed.')
+    } else {
+      setItems(prev =>
+        prev.map(item =>
+          item.id === id ? { ...item, status } : item
         )
       )
-      setMessage('Inquiry status updated successfully.')
+      setMessage(`Opportunity status updated to ${status}.`)
     }
 
-    setUpdatingId(null)
+    setBusyId(null)
   }
 
-  const getListingTitle = (id: string) =>
-    listings.find(item => item.id === id)?.title ||
-    'Unknown opportunity'
+  async function deleteListing(id: string) {
+    if (!supabase) return
 
-  const pending = inquiries.filter(
-    item => item.status === 'pending'
+    if (!window.confirm('Delete this opportunity?')) return
+
+    setBusyId(id)
+    setMessage('')
+
+    const { data, error } = await supabase
+      .from('listings')
+      .delete()
+      .eq('id', id)
+      .select('id')
+      .single()
+
+    if (error || !data) {
+      setMessage(error?.message || 'Delete failed.')
+    } else {
+      setItems(prev => prev.filter(item => item.id !== id))
+      setMessage('Opportunity deleted successfully.')
+    }
+
+    setBusyId(null)
+  }
+
+  async function signOut() {
+    if (!supabase) return
+    await supabase.auth.signOut()
+    router.push('/login')
+    router.refresh()
+  }
+
+  const published = items.filter(
+    item => item.status === 'published'
   ).length
 
-  const contacted = inquiries.filter(
-    item => item.status === 'contacted'
+  const drafts = items.filter(
+    item => item.status === 'draft'
   ).length
+
+  if (loading) {
+    return <p className="py-12">Loading dashboard...</p>
+  }
 
   return (
     <section className="space-y-8 py-8">
-      <div className="space-y-3">
-        <Link href="/dashboard" className="text-amber-300">
-          ← Back to Dashboard
-        </Link>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold">My Dashboard</h1>
+          <p className="mt-2 text-blue-300">{email}</p>
+        </div>
 
-        <h1 className="text-3xl font-bold">
-          Investor Inquiries
-        </h1>
+        <div className="flex flex-wrap gap-3">
+          <Link href="/dashboard/inquiries" className="btn">
+            Investor Inquiries
+          </Link>
 
-        <p className="text-slate-300">
-          Manage investor interest in your opportunities.
-        </p>
+          <Link href="/listings/new" className="btn">
+            + New Opportunity
+          </Link>
+        </div>
       </div>
 
-      {loading ? (
-        <p>Loading inquiries...</p>
-      ) : (
-        <>
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="card">
-              <p className="text-slate-400">Total Inquiries</p>
-              <p className="text-3xl font-bold">
-                {inquiries.length}
-              </p>
-            </div>
+      <div className="grid gap-4 md:grid-cols-3">
+        <div className="card">
+          <p className="text-blue-300">Total Opportunities</p>
+          <p className="mt-2 text-3xl font-bold">{items.length}</p>
+        </div>
 
-            <div className="card">
-              <p className="text-slate-400">Pending</p>
-              <p className="text-3xl font-bold text-amber-300">
-                {pending}
-              </p>
-            </div>
+        <div className="card">
+          <p className="text-blue-300">Published</p>
+          <p className="mt-2 text-3xl font-bold text-green-400">
+            {published}
+          </p>
+        </div>
 
-            <div className="card">
-              <p className="text-slate-400">Contacted</p>
-              <p className="text-3xl font-bold text-green-400">
-                {contacted}
-              </p>
-            </div>
-          </div>
+        <div className="card">
+          <p className="text-blue-300">Drafts</p>
+          <p className="mt-2 text-3xl font-bold text-amber-400">
+            {drafts}
+          </p>
+        </div>
+      </div>
 
-          {message && (
-            <p role="status" className="text-amber-300">
-              {message}
-            </p>
-          )}
+      <h2 className="text-2xl font-bold">My Opportunities</h2>
 
-          {inquiries.length === 0 && (
-            <div className="card">
-              <p className="text-slate-300">
-                No investor inquiries yet.
-              </p>
-            </div>
-          )}
-
-          <div className="space-y-4">
-            {inquiries.map(inquiry => (
-              <div
-                key={inquiry.id}
-                className="card space-y-4"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div>
-                    <h2 className="text-xl font-bold">
-                      {getListingTitle(inquiry.listing_id)}
-                    </h2>
-
-                    <p className="mt-2 text-sm text-slate-400">
-                      Received:{' '}
-                      {new Date(inquiry.created_at)
-                        .toLocaleDateString('en-US')}
-                    </p>
-
-                    <p className="mt-1 text-sm text-slate-400">
-                      Investor ID: {inquiry.investor_id}
-                    </p>
-                  </div>
-
-                  <span className="rounded-full bg-slate-700 px-4 py-2 text-sm">
-                    {inquiry.status}
-                  </span>
-                </div>
-
-                <div className="border-t border-slate-700 pt-4">
-                  <p className="whitespace-pre-wrap text-slate-300">
-                    {inquiry.message || 'No message provided.'}
-                  </p>
-                </div>
-
-                <div className="flex flex-wrap gap-3">
-                  <button
-                    type="button"
-                    className="btn"
-                    disabled={updatingId !== null}
-                    onClick={() =>
-                      updateStatus(inquiry.id, 'contacted')
-                    }
-                  >
-                    {updatingId === inquiry.id
-                      ? 'Saving...'
-                      : 'Mark Contacted'}
-                  </button>
-
-                  <button
-                    type="button"
-                    className="rounded-lg border border-slate-600 px-4 py-2"
-                    disabled={updatingId !== null}
-                    onClick={() =>
-                      updateStatus(inquiry.id, 'closed')
-                    }
-                  >
-                    Close Inquiry
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </>
+      {message && (
+        <p className="text-amber-300" role="status">{message}</p>
       )}
+
+      {items.length === 0 && (
+        <p className="text-slate-400">No opportunities yet.</p>
+      )}
+
+      <div className="space-y-4">
+        {items.map(item => (
+          <div
+            key={item.id}
+            className="card flex flex-wrap items-center justify-between gap-4"
+          >
+            <div>
+              <h3 className="text-xl font-bold">{item.title}</h3>
+
+              <p className="mt-2">
+                Status:{' '}
+                <span className={
+                  item.status === 'published'
+                    ? 'text-green-400'
+                    : 'text-amber-400'
+                }>
+                  {item.status}
+                </span>
+              </p>
+
+              <p className="mt-2 text-sm text-slate-400">
+                Created:{' '}
+                {new Date(item.created_at).toLocaleDateString('en-US')}
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <button
+                className="btn"
+                disabled={busyId === item.id}
+                onClick={() =>
+                  updateStatus(
+                    item.id,
+                    item.status === 'published' ? 'draft' : 'published'
+                  )
+                }
+              >
+                {item.status === 'published' ? 'Unpublish' : 'Publish'}
+              </button>
+
+              <Link
+                href={`/listings/${item.id}/edit`}
+                className="btn"
+              >
+                Edit
+              </Link>
+
+              <button
+                className="rounded-lg bg-red-600 px-4 py-2 font-bold text-white disabled:opacity-50"
+                disabled={busyId === item.id}
+                onClick={() => deleteListing(item.id)}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="border-t border-slate-700 pt-6">
+        <button onClick={signOut} className="btn">
+          Sign Out
+        </button>
+      </div>
     </section>
   )
 }
