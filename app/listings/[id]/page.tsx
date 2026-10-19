@@ -13,6 +13,7 @@ type Listing = {
   country: string | null
   opportunity_type: string | null
   created_at: string
+  owner_id: string
 }
 
 export default function ListingDetails() {
@@ -23,23 +24,49 @@ export default function ListingDetails() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
+  const [userId, setUserId] = useState<string | null>(null)
+  const [authLoading, setAuthLoading] = useState(true)
+
+  const [inquiryMessage, setInquiryMessage] = useState('')
+  const [sending, setSending] = useState(false)
+  const [inquiryResult, setInquiryResult] = useState('')
+  const [inquirySent, setInquirySent] = useState(false)
+
   useEffect(() => {
+    let active = true
+
     async function load() {
       if (!supabase) {
-        setError('Supabase is not configured.')
-        setLoading(false)
+        if (active) {
+          setError('Supabase is not configured.')
+          setLoading(false)
+          setAuthLoading(false)
+        }
         return
       }
 
-      const { data, error } = await supabase
+      const client = supabase
+
+      const { data: authData } = await client.auth.getUser()
+
+      if (!active) return
+
+      setUserId(authData.user?.id || null)
+      setAuthLoading(false)
+
+      const { data, error: fetchError } = await client
         .from('listings')
-        .select('id,title,description,country,opportunity_type,created_at')
+        .select(
+          'id,title,description,country,opportunity_type,created_at,owner_id'
+        )
         .eq('id', id)
         .eq('status', 'published')
         .maybeSingle()
 
-      if (error) {
-        setError(error.message)
+      if (!active) return
+
+      if (fetchError) {
+        setError(fetchError.message)
       } else if (!data) {
         setError('Opportunity not found.')
       } else {
@@ -49,11 +76,83 @@ export default function ListingDetails() {
       setLoading(false)
     }
 
-    if (id) load()
+    if (id) {
+      load()
+    } else {
+      setError('Invalid opportunity ID.')
+      setLoading(false)
+      setAuthLoading(false)
+    }
+
+    return () => {
+      active = false
+    }
   }, [id])
 
+  async function sendInquiry() {
+    if (!supabase || !listing || sending || inquirySent) return
+
+    const message = inquiryMessage.trim()
+
+    if (!message) {
+      setInquiryResult('Please enter your message.')
+      return
+    }
+
+    setSending(true)
+    setInquiryResult('')
+
+    try {
+      const { data: authData, error: authError } =
+        await supabase.auth.getUser()
+
+      if (authError || !authData.user) {
+        setInquiryResult('Please sign in first.')
+        return
+      }
+
+      const investorId = authData.user.id
+
+      if (investorId === listing.owner_id) {
+        setInquiryResult(
+          'You cannot send an inquiry to your own opportunity.'
+        )
+        return
+      }
+
+      const { error: insertError } = await supabase
+        .from('inquiries')
+        .insert({
+          listing_id: listing.id,
+          investor_id: investorId,
+          message,
+          status: 'pending'
+        })
+
+      if (insertError) {
+        throw insertError
+      }
+
+      setInquirySent(true)
+      setInquiryMessage('')
+      setInquiryResult('Your inquiry was sent successfully!')
+    } catch (err) {
+      setInquiryResult(
+        err instanceof Error
+          ? err.message
+          : 'Failed to send inquiry. Please try again.'
+      )
+    } finally {
+      setSending(false)
+    }
+  }
+
   if (loading) {
-    return <p className="py-12">Loading opportunity...</p>
+    return (
+      <p className="py-12">
+        Loading opportunity...
+      </p>
+    )
   }
 
   if (error || !listing) {
@@ -62,6 +161,7 @@ export default function ListingDetails() {
         <h1 className="text-2xl font-bold">
           {error || 'Opportunity not found.'}
         </h1>
+
         <Link href="/listings" className="btn">
           Back to Opportunities
         </Link>
@@ -69,16 +169,22 @@ export default function ListingDetails() {
     )
   }
 
+  const isOwner = userId === listing.owner_id
+
   return (
     <section className="space-y-8 py-8">
-      <Link href="/listings" className="text-amber-300">
+      <Link
+        href="/listings"
+        className="text-amber-300"
+      >
         ← Back to Opportunities
       </Link>
 
       <div className="card space-y-6">
         <div className="flex flex-wrap gap-3">
           <span className="rounded-full bg-amber-500/15 px-4 py-2 text-amber-300">
-            {(listing.opportunity_type || 'Opportunity').replaceAll('_', ' ')}
+            {(listing.opportunity_type || 'Opportunity')
+              .replaceAll('_', ' ')}
           </span>
 
           <span className="rounded-full bg-slate-700 px-4 py-2">
@@ -102,7 +208,9 @@ export default function ListingDetails() {
 
         <div className="border-t border-slate-700 pt-6">
           <p className="text-sm text-slate-400">
-            Listed on {new Date(listing.created_at).toLocaleDateString('en-US')}
+            Listed on{' '}
+            {new Date(listing.created_at)
+              .toLocaleDateString('en-US')}
           </p>
         </div>
       </div>
@@ -117,15 +225,67 @@ export default function ListingDetails() {
           potential investment opportunities.
         </p>
 
-        <Link href="/login" className="btn">
-          Sign In to Continue
-        </Link>
+        {authLoading ? (
+          <p className="text-slate-400">
+            Checking your account...
+          </p>
+        ) : !userId ? (
+          <Link href="/login" className="btn">
+            Sign In to Continue
+          </Link>
+        ) : isOwner ? (
+          <p className="text-amber-300">
+            This is your opportunity.
+            You cannot send an inquiry to yourself.
+          </p>
+        ) : inquirySent ? (
+          <div
+            role="status"
+            className="rounded-lg border border-green-700 bg-green-900/20 p-4 text-green-400"
+          >
+            Your inquiry was sent successfully!
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <label
+              htmlFor="inquiry-message"
+              className="block font-semibold"
+            >
+              Your Message
+            </label>
+
+            <textarea
+              id="inquiry-message"
+              className="w-full rounded-lg border border-slate-600 bg-slate-900 p-4 text-white outline-none focus:border-amber-400"
+              rows={5}
+              maxLength={2000}
+              placeholder="Hello, I am interested in this investment opportunity. I would like to learn more..."
+              value={inquiryMessage}
+              onChange={(e) =>
+                setInquiryMessage(e.target.value)
+              }
+            />
+
+            <button
+              type="button"
+              className="btn"
+              onClick={sendInquiry}
+              disabled={sending || !inquiryMessage.trim()}
+            >
+              {sending ? 'Sending...' : 'Send Inquiry'}
+            </button>
+
+            {inquiryResult && (
+              <p
+                role="status"
+                className="text-amber-300"
+              >
+                {inquiryResult}
+              </p>
+            )}
+          </div>
+        )}
       </div>
     </section>
   )
 }
-
-const [inquiryMessage, setInquiryMessage] = useState('')
-const [sending, setSending] = useState(false)
-const [inquiryResult, setInquiryResult] = useState('')
-
