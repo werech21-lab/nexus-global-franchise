@@ -1,0 +1,6 @@
+'use client'
+import {useEffect,useState} from 'react'
+import Link from 'next/link'
+import {supabase} from '@/lib/supabase'
+type Listing={id:string,title:string,status:string,created_at:string}
+export default function Dashboard(){const [email,setEmail]=useState('');const [items,setItems]=useState<Listing[]>([]);const [message,setMessage]=useState('Loading...');useEffect(()=>{async function load(){if(!supabase){setMessage('Configure Supabase first.');return}const {data:{user}}=await supabase.auth.getUser();if(!user){setMessage('Please sign in first.');return}setEmail(user.email||'');const {data,error}=await supabase.from('listings').select('id,title,status,created_at').eq('owner_id',user.id).order('created_at',{ascending:false});setItems(data||[]);setMessage(error?.message||'')}load()},[]);return <div className="space-y-5"><h1 className="text-3xl font-bold">My Dashboard</h1><p>{email}</p><Link className="btn" href="/listings/new">+ New Opportunity</Link><p>{message}</p>{items.map(x=><div className="card" key={x.id}><strong>{x.title}</strong><p>Status: {x.status}</p></div>)}<button onClick={async()=>{await supabase?.auth.signOut();window.location.href='/login'}}>Sign Out</button></div>}

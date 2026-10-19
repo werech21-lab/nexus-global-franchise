@@ -1,0 +1,5 @@
+'use client'
+import {useEffect,useState} from 'react'
+import {supabase} from '@/lib/supabase'
+type Listing={id:string,title:string,description:string,country:string,opportunity_type:string}
+export default function Listings(){const [items,setItems]=useState<Listing[]>([]);const [message,setMessage]=useState('Loading opportunities...');useEffect(()=>{async function load(){if(!supabase){setMessage('Configure Supabase first.');return}const {data,error}=await supabase.from('listings').select('id,title,description,country,opportunity_type').eq('status','published').order('created_at',{ascending:false});setItems(data||[]);setMessage(error?.message||(data?.length?'':'No published opportunities yet.'))}load()},[]);return <section className="space-y-5"><h1 className="text-3xl font-bold">Explore Opportunities</h1><p>{message}</p><div className="grid md:grid-cols-2 gap-4">{items.map(x=><article className="card" key={x.id}><p className="text-amber-300">{x.opportunity_type.replaceAll('_',' ')} · {x.country}</p><h2 className="text-xl font-bold mt-2">{x.title}</h2><p className="text-slate-300 mt-3">{x.description}</p></article>)}</div></section>}
