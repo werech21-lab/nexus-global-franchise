@@ -1,14 +1,8 @@
 
 'use client'
 
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type FormEvent,
-  type KeyboardEvent,
-} from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import type { FormEvent, KeyboardEvent } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
@@ -28,73 +22,138 @@ type Conversation = {
   owner_id: string
 }
 
+type ReadState = {
+  user_id: string
+  last_read_at: string
+}
+
 export default function ConversationPage() {
   const params = useParams()
   const conversationId = params.id as string
 
   const [userId, setUserId] = useState('')
-  const [conversation, setConversation] =
-    useState<Conversation | null>(null)
+  const [conversation, setConversation] = useState<Conversation | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
+  const [readStates, setReadStates] = useState<ReadState[]>([])
   const [body, setBody] = useState('')
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
 
-  const messagesEndRef = useRef<HTMLDivElement>(null)
-  const sendingRef = useRef(false)
+  const bottomRef = useRef<HTMLDivElement>(null)
+  const userIdRef = useRef('')
+  const lastMarkedRef = useRef('')
+  const markingRef = useRef(false)
 
-  const addMessage = useCallback((message: Message) => {
-    setMessages(current => {
-      if (current.some(item => item.id === message.id)) {
-        return current
-      }
+  useEffect(() => {
+    userIdRef.current = userId
+  }, [userId])
 
-      return [...current, message].sort(
-        (a, b) =>
-          new Date(a.created_at).getTime() -
-          new Date(b.created_at).getTime()
-      )
-    })
-  }, [])
+  const loadReadStates = useCallback(async () => {
+    if (!supabase || !conversationId) return
 
-  const markAsRead = useCallback(
-    async (currentUserId: string) => {
-      if (!supabase || !conversationId) return
+    const { data, error: readError } = await supabase
+      .from('conversation_reads')
+      .select('user_id,last_read_at')
+      .eq('conversation_id', conversationId)
 
+    if (!readError && data) {
+      setReadStates(data as ReadState[])
+    } else if (readError) {
+      console.error('Read states:', readError)
+    }
+  }, [conversationId])
+
+  const markAsRead = useCallback(async () => {
+    if (
+      !supabase ||
+      !conversationId ||
+      !userIdRef.current ||
+      markingRef.current ||
+      document.visibilityState !== 'visible'
+    ) {
+      return
+    }
+
+    const currentUser = userIdRef.current
+
+    const { data: latestMessages, error: latestError } = await supabase
+      .from('messages')
+      .select('created_at')
+      .eq('conversation_id', conversationId)
+      .neq('sender_id', currentUser)
+      .order('created_at', { ascending: false })
+      .limit(1)
+
+    if (latestError || !latestMessages?.length) return
+
+    const latestAt = latestMessages[0].created_at
+
+    if (lastMarkedRef.current === latestAt) return
+
+    markingRef.current = true
+
+    try {
       const { error: readError } = await supabase
         .from('conversation_reads')
         .upsert(
           {
             conversation_id: conversationId,
-            user_id: currentUserId,
-            last_read_at: new Date().toISOString(),
+            user_id: currentUser,
+            last_read_at: new Date().toISOString()
           },
-          {
-            onConflict: 'conversation_id,user_id',
-          }
+          { onConflict: 'conversation_id,user_id' }
         )
 
       if (readError) {
-        console.error('Could not mark conversation as read:', readError)
+        console.error('Mark as read:', readError)
+        return
       }
-    },
-    [conversationId]
-  )
+
+      lastMarkedRef.current = latestAt
+      await loadReadStates()
+    } finally {
+      markingRef.current = false
+    }
+  }, [conversationId, loadReadStates])
+
+  const loadMessages = useCallback(async () => {
+    if (!supabase || !conversationId) return
+
+    const { data, error: messagesError } = await supabase
+      .from('messages')
+      .select('id,conversation_id,sender_id,body,created_at')
+      .eq('conversation_id', conversationId)
+      .order('created_at', { ascending: true })
+
+    if (messagesError) {
+      console.error('Messages:', messagesError)
+      return
+    }
+
+    setMessages((data || []) as Message[])
+  }, [conversationId])
 
   useEffect(() => {
+    if (!conversationId) return
+
     let active = true
+    lastMarkedRef.current = ''
+    userIdRef.current = ''
 
     async function load() {
       setLoading(true)
       setError('')
       setConversation(null)
       setMessages([])
+      setReadStates([])
       setUserId('')
 
       if (!supabase) {
-        setError('Supabase is not configured.')
-        setLoading(false)
+        if (active) {
+          setError('Supabase is not configured.')
+          setLoading(false)
+        }
         return
       }
 
@@ -111,57 +170,59 @@ export default function ConversationPage() {
         return
       }
 
-      const currentUserId = auth.user.id
+      const currentUser = auth.user.id
+      userIdRef.current = currentUser
+      setUserId(currentUser)
 
-      const { data: chat, error: chatError } =
-        await client
-          .from('conversations')
-          .select('id,listing_id,investor_id,owner_id')
-          .eq('id', conversationId)
-          .single()
+      const { data: chat, error: chatError } = await client
+        .from('conversations')
+        .select('id,listing_id,investor_id,owner_id')
+        .eq('id', conversationId)
+        .single()
 
       if (!active) return
 
-      if (chatError || !chat) {
+      if (
+        chatError ||
+        !chat ||
+        (chat.owner_id !== currentUser &&
+          chat.investor_id !== currentUser)
+      ) {
         setError('Conversation not found or access denied.')
         setLoading(false)
         return
       }
 
-      const currentConversation = chat as Conversation
+      setConversation(chat as Conversation)
 
-      if (
-        currentConversation.owner_id !== currentUserId &&
-        currentConversation.investor_id !== currentUserId
-      ) {
-        setError('You do not have access to this conversation.')
-        setLoading(false)
-        return
-      }
-
-      const { data: chatMessages, error: messagesError } =
-        await client
+      const [messagesResult, readsResult] = await Promise.all([
+        client
           .from('messages')
-          .select(
-            'id,conversation_id,sender_id,body,created_at'
-          )
+          .select('id,conversation_id,sender_id,body,created_at')
           .eq('conversation_id', conversationId)
-          .order('created_at', { ascending: true })
+          .order('created_at', { ascending: true }),
+
+        client
+          .from('conversation_reads')
+          .select('user_id,last_read_at')
+          .eq('conversation_id', conversationId)
+      ])
 
       if (!active) return
 
-      if (messagesError) {
-        setError(messagesError.message)
-        setLoading(false)
-        return
+      if (messagesResult.error) {
+        setError(messagesResult.error.message)
+      } else {
+        setMessages((messagesResult.data || []) as Message[])
       }
 
-      setUserId(currentUserId)
-      setConversation(currentConversation)
-      setMessages((chatMessages || []) as Message[])
-      setLoading(false)
+      if (readsResult.error) {
+        console.error('Read states:', readsResult.error)
+      } else {
+        setReadStates((readsResult.data || []) as ReadState[])
+      }
 
-      void markAsRead(currentUserId)
+      setLoading(false)
     }
 
     void load()
@@ -169,7 +230,34 @@ export default function ConversationPage() {
     return () => {
       active = false
     }
-  }, [conversationId, markAsRead])
+  }, [conversationId])
+
+  useEffect(() => {
+    if (!conversation || !userId) return
+
+    void markAsRead()
+
+    const onFocus = () => {
+      void markAsRead()
+    }
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void markAsRead()
+      }
+    }
+
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVisibilityChange)
+
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener(
+        'visibilitychange',
+        onVisibilityChange
+      )
+    }
+  }, [conversation, userId, markAsRead])
 
   useEffect(() => {
     if (!supabase || !conversation || !userId) return
@@ -177,27 +265,39 @@ export default function ConversationPage() {
     const client = supabase
 
     const channel = client
-      .channel(`nexus-chat-${conversationId}`)
+      .channel(`nexus-messages-${conversationId}`)
       .on(
         'postgres_changes',
         {
           event: 'INSERT',
           schema: 'public',
           table: 'messages',
-          filter: `conversation_id=eq.${conversationId}`,
+          filter: `conversation_id=eq.${conversationId}`
         },
-        payload => {
+        (payload) => {
           const incoming = payload.new as Message
 
-          if (incoming.conversation_id !== conversationId) {
-            return
-          }
+          setMessages((current) =>
+            current.some((item) => item.id === incoming.id)
+              ? current
+              : [...current, incoming]
+          )
 
-          addMessage(incoming)
-
-          if (document.visibilityState === 'visible') {
-            void markAsRead(userId)
+          if (incoming.sender_id !== userIdRef.current) {
+            void markAsRead()
           }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'conversation_reads',
+          filter: `conversation_id=eq.${conversationId}`
+        },
+        () => {
+          void loadReadStates()
         }
       )
       .subscribe()
@@ -209,30 +309,34 @@ export default function ConversationPage() {
     conversationId,
     conversation,
     userId,
-    addMessage,
     markAsRead,
+    loadReadStates
   ])
 
   useEffect(() => {
-    if (!userId || !conversation) return
+    if (!conversation || !userId) return
 
-    const handleFocus = () => {
-      void markAsRead(userId)
-    }
+    const interval = window.setInterval(() => {
+      void loadMessages()
+      void loadReadStates()
+      void markAsRead()
+    }, 10000)
 
-    window.addEventListener('focus', handleFocus)
-
-    return () => {
-      window.removeEventListener('focus', handleFocus)
-    }
-  }, [userId, conversation, markAsRead])
+    return () => window.clearInterval(interval)
+  }, [
+    conversation,
+    userId,
+    loadMessages,
+    loadReadStates,
+    markAsRead
+  ])
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({
+    bottomRef.current?.scrollIntoView({
       behavior: 'smooth',
-      block: 'end',
+      block: 'nearest'
     })
-  }, [messages])
+  }, [messages.length])
 
   async function sendMessage(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault()
@@ -242,7 +346,7 @@ export default function ConversationPage() {
       !conversation ||
       !userId ||
       !body.trim() ||
-      sendingRef.current
+      sending
     ) {
       return
     }
@@ -254,41 +358,34 @@ export default function ConversationPage() {
       return
     }
 
-    sendingRef.current = true
     setSending(true)
     setError('')
 
-    try {
-      const { data, error: sendError } = await supabase
-        .from('messages')
-        .insert({
-          conversation_id: conversationId,
-          sender_id: userId,
-          body: text,
-        })
-        .select(
-          'id,conversation_id,sender_id,body,created_at'
-        )
-        .single()
+    const { data, error: sendError } = await supabase
+      .from('messages')
+      .insert({
+        conversation_id: conversationId,
+        sender_id: userId,
+        body: text
+      })
+      .select('id,conversation_id,sender_id,body,created_at')
+      .single()
 
-      if (sendError) {
-        setError(sendError.message)
-        return
-      }
-
-      setBody(current => current === text ? '' : current)
+    if (sendError) {
+      setError(sendError.message)
+    } else {
+      setBody('')
 
       if (data) {
-        addMessage(data as Message)
+        setMessages((current) =>
+          current.some((item) => item.id === data.id)
+            ? current
+            : [...current, data as Message]
+        )
       }
-
-      void markAsRead(userId)
-    } catch {
-      setError('Could not send message. Please try again.')
-    } finally {
-      sendingRef.current = false
-      setSending(false)
     }
+
+    setSending(false)
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
@@ -298,182 +395,180 @@ export default function ConversationPage() {
       !event.nativeEvent.isComposing
     ) {
       event.preventDefault()
-
-      if (!sendingRef.current && body.trim()) {
-        void sendMessage()
-      }
+      void sendMessage()
     }
   }
 
-  function formatTime(value: string) {
-    return new Date(value).toLocaleString(undefined, {
-      dateStyle: 'medium',
-      timeStyle: 'short',
-    })
-  }
+  const otherUserId = conversation
+    ? conversation.owner_id === userId
+      ? conversation.investor_id
+      : conversation.owner_id
+    : ''
+
+  const otherReadAt = readStates.find(
+    (item) => item.user_id === otherUserId
+  )?.last_read_at
 
   return (
-    <section className="mx-auto w-full max-w-5xl space-y-5 px-4 py-8 sm:px-6">
+    <section className="mx-auto max-w-4xl space-y-5 px-4 py-8 text-white">
       <Link
         href="/dashboard/inquiries"
-        className="inline-flex items-center gap-2 text-sm font-medium text-amber-300 transition hover:text-amber-200"
+        className="text-sm text-amber-300 hover:text-amber-200"
       >
         ← Back to Inquiries
       </Link>
 
-      <div className="overflow-hidden rounded-3xl border border-slate-700/70 bg-[#111e32] shadow-2xl shadow-black/20">
-        <div className="border-b border-slate-700/70 bg-gradient-to-r from-[#152842] to-[#101c30] px-5 py-6 sm:px-7">
-          <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-amber-400/10 text-2xl">
+      <div className="overflow-hidden rounded-2xl border border-slate-700 bg-[#10213A]">
+        <div className="border-b border-slate-700 p-5">
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-700 text-xl">
               💬
             </div>
 
-            <div className="min-w-0">
-              <h1 className="text-xl font-bold text-white sm:text-2xl">
+            <div>
+              <h1 className="text-xl font-bold">
                 Nexus Secure Messenger
               </h1>
-
-              <p className="mt-1 text-xs text-slate-400 sm:text-sm">
+              <p className="text-xs text-slate-400">
                 Private conversations inside Nexus Global Franchise
               </p>
             </div>
           </div>
 
-          <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-300">
+          <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-300">
             <span className="h-2 w-2 rounded-full bg-emerald-400" />
             Private conversation
           </div>
         </div>
 
+        <div className="border-b border-slate-700 px-5 py-3 text-xs text-slate-400">
+          Keep negotiations and agreements on Nexus.
+        </div>
+
         {loading ? (
-          <div className="flex min-h-[350px] items-center justify-center px-6 text-sm text-slate-400">
+          <div className="p-8 text-center text-slate-400">
             Loading conversation...
           </div>
         ) : !conversation ? (
-          <div className="min-h-[250px] px-6 py-12 text-center text-sm text-red-300">
+          <div className="p-8 text-center text-red-400">
             {error || 'Conversation not found.'}
           </div>
         ) : (
           <>
-            <div className="border-b border-slate-700/60 px-5 py-3 sm:px-7">
-              <p className="text-xs text-slate-400">
-                Keep negotiations and agreements on Nexus.
-              </p>
-            </div>
-
-            <div className="h-[420px] space-y-5 overflow-y-auto bg-[#0d192b] px-4 py-6 sm:h-[500px] sm:px-7">
+            <div className="max-h-[500px] min-h-[350px] space-y-4 overflow-y-auto bg-[#09172C] p-5">
               {messages.length === 0 && (
-                <div className="flex h-full flex-col items-center justify-center text-center">
-                  <div className="mb-3 text-4xl">✉️</div>
-
-                  <p className="font-semibold text-white">
-                    No messages yet
-                  </p>
-
-                  <p className="mt-2 text-sm text-slate-400">
-                    Start the conversation below.
-                  </p>
-                </div>
+                <p className="py-12 text-center text-sm text-slate-400">
+                  No messages yet. Start the conversation.
+                </p>
               )}
 
-              {messages.map(item => {
+              {messages.map((item) => {
                 const mine = item.sender_id === userId
+
+                const read =
+                  mine &&
+                  Boolean(
+                    otherReadAt &&
+                    new Date(otherReadAt).getTime() >=
+                      new Date(item.created_at).getTime()
+                  )
 
                 return (
                   <div
                     key={item.id}
-                    className={`flex ${
-                      mine ? 'justify-end' : 'justify-start'
-                    }`}
+                    className={
+                      mine ? 'flex justify-end' : 'flex justify-start'
+                    }
                   >
                     <div
-                      className={`max-w-[88%] rounded-2xl px-4 py-3 shadow-sm sm:max-w-[75%] ${
+                      className={
                         mine
-                          ? 'rounded-br-md bg-[#dfb66c] text-slate-950'
-                          : 'rounded-bl-md border border-slate-600/50 bg-[#243650] text-white'
-                      }`}
+                          ? 'max-w-[85%] rounded-2xl rounded-br-sm bg-[#E5B866] p-4 text-slate-950'
+                          : 'max-w-[85%] rounded-2xl rounded-bl-sm bg-slate-700 p-4 text-white'
+                      }
                     >
                       <p
-                        className={`mb-2 text-[11px] font-semibold ${
+                        className={
                           mine
-                            ? 'text-slate-800'
-                            : 'text-amber-300'
-                        }`}
+                            ? 'mb-2 text-xs font-bold text-slate-800'
+                            : 'mb-2 text-xs font-bold text-amber-300'
+                        }
                       >
                         {mine ? 'You' : 'Other participant'}
                       </p>
 
-                      <p className="whitespace-pre-wrap break-words text-sm leading-6">
+                      <p className="whitespace-pre-wrap break-words text-sm">
                         {item.body}
                       </p>
 
-                      <p
-                        className={`mt-2 text-right text-[10px] ${
-                          mine
-                            ? 'text-slate-700'
-                            : 'text-slate-400'
-                        }`}
-                      >
-                        {formatTime(item.created_at)}
-                      </p>
+                      <div className="mt-3 flex items-center justify-end gap-3">
+                        <span className="text-[10px] opacity-70">
+                          {new Date(item.created_at).toLocaleString()}
+                        </span>
+
+                        {mine && (
+                          <span
+                            title={read ? 'Read' : 'Sent'}
+                            className={
+                              read
+                                ? 'flex items-center gap-1 text-xs font-bold text-emerald-800'
+                                : 'flex items-center gap-1 text-xs font-semibold text-slate-700'
+                            }
+                          >
+                            <span>{read ? '✓✓' : '✓'}</span>
+                            <span>{read ? 'Read' : 'Sent'}</span>
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )
               })}
 
-              <div ref={messagesEndRef} />
+              <div ref={bottomRef} />
             </div>
 
             <form
               onSubmit={sendMessage}
-              className="border-t border-slate-700/70 bg-[#111e32] p-4 sm:p-6"
+              className="space-y-3 border-t border-slate-700 p-5"
             >
               <label
-                htmlFor="message"
-                className="mb-3 block text-sm font-semibold text-white"
+                htmlFor="nexus-message"
+                className="block text-sm font-semibold"
               >
                 Your message
               </label>
 
               <textarea
-                id="message"
+                id="nexus-message"
                 value={body}
-                onChange={event => setBody(event.target.value)}
+                onChange={(event) => setBody(event.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Write your message here..."
                 maxLength={5000}
                 rows={3}
-                className="w-full resize-none rounded-2xl border border-slate-600 bg-[#182940] px-4 py-4 text-sm leading-6 text-white outline-none transition placeholder:text-slate-400 focus:border-amber-400 focus:ring-2 focus:ring-amber-400/10"
+                className="w-full resize-y rounded-xl border border-slate-600 bg-slate-800 p-4 text-sm text-white outline-none focus:border-amber-400"
                 required
               />
 
-              <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
-                <span>
-                  Enter to send · Shift + Enter for new line
-                </span>
-
+              <div className="flex items-center justify-between text-xs text-slate-400">
+                <span>Enter to send · Shift + Enter for new line</span>
                 <span>{body.length}/5000</span>
               </div>
 
               {error && (
-                <p
-                  role="alert"
-                  className="mt-3 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300"
-                >
+                <p role="alert" className="text-sm text-red-400">
                   {error}
                 </p>
               )}
 
-              <div className="mt-4 flex justify-end">
+              <div className="flex justify-end">
                 <button
                   type="submit"
                   disabled={sending || !body.trim()}
-                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#dfb66c] px-6 py-3 text-sm font-bold text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="rounded-xl bg-[#E5B866] px-5 py-3 text-sm font-bold text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  <span>
-                    {sending ? 'Sending...' : 'Send Message'}
-                  </span>
-                  <span aria-hidden="true">➤</span>
+                  {sending ? 'Sending...' : 'Send Message →'}
                 </button>
               </div>
             </form>
