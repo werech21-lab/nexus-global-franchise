@@ -5,72 +5,139 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 
+type DealStatus = "negotiating" | "agreed" | "completed";
+
 type Deal = {
   id: string;
   conversation_id: string;
   amount: number;
   currency: string;
-  status: string;
+  status: DealStatus;
   commission_rate: number;
   commission_amount: number;
   created_at: string;
 };
 
+const statuses: DealStatus[] = [
+  "negotiating",
+  "agreed",
+  "completed",
+];
+
 export default function DealsPage() {
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
+  const [savingId, setSavingId] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
-  useEffect(() => {
-    async function loadDeals() {
-      setLoading(true);
-      setError("");
+  async function loadDeals() {
+    setLoading(true);
+    setError("");
 
-      // Check Supabase connection
-      const client = supabase;
-
-      if (!client) {
-        setError("Supabase connection is not available.");
-        setLoading(false);
-        return;
+    try {
+      if (!supabase) {
+        throw new Error("Supabase connection unavailable.");
       }
 
-      // Check logged-in user
       const { data: authData, error: authError } =
-        await client.auth.getUser();
+        await supabase.auth.getUser();
 
       if (authError || !authData.user) {
-        setError("Please log in to view your deals.");
-        setLoading(false);
-        return;
+        throw new Error("Please log in to view your deals.");
       }
 
-      // Fetch deals permitted by Supabase RLS
-      const { data, error: dealsError } = await client
+      const { data, error: dealsError } = await supabase
         .from("deals")
         .select(
           "id, conversation_id, amount, currency, status, commission_rate, commission_amount, created_at"
         )
         .order("created_at", { ascending: false });
 
-      if (dealsError) {
-        setError(dealsError.message);
-      } else {
-        setDeals((data || []) as Deal[]);
-      }
+      if (dealsError) throw dealsError;
 
+      setDeals((data || []) as Deal[]);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to load deals."
+      );
+    } finally {
       setLoading(false);
     }
+  }
 
+  useEffect(() => {
     loadDeals();
   }, []);
 
-  const cardStyle: React.CSSProperties = {
-    background: "#10213d",
-    border: "1px solid #294365",
-    borderRadius: 14,
-    padding: 22,
-  };
+  async function updateStatus(
+    deal: Deal,
+    newStatus: DealStatus
+  ) {
+    if (deal.status === newStatus) return;
+
+    const confirmed = window.confirm(
+      `Change deal status from "${deal.status}" to "${newStatus}"?`
+    );
+
+    if (!confirmed) return;
+
+    setSavingId(deal.id);
+    setError("");
+    setSuccess("");
+
+    try {
+      if (!supabase) {
+        throw new Error("Supabase connection unavailable.");
+      }
+
+      const { data: authData, error: authError } =
+        await supabase.auth.getUser();
+
+      if (authError || !authData.user) {
+        throw new Error("Please log in first.");
+      }
+
+      const { data, error: updateError } = await supabase
+        .from("deals")
+        .update({ status: newStatus })
+        .eq("id", deal.id)
+        .eq("status", deal.status)
+        .select("id, status")
+        .single();
+
+      if (updateError) throw updateError;
+
+      if (!data) {
+        throw new Error("Deal could not be updated.");
+      }
+
+      setDeals((previous) =>
+        previous.map((item) =>
+          item.id === deal.id
+            ? { ...item, status: data.status as DealStatus }
+            : item
+        )
+      );
+
+      setSuccess("Deal status updated successfully.");
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to update deal status."
+      );
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  function formatMoney(amount: number, currency: string) {
+    return `${Number(amount || 0).toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })} ${currency}`;
+  }
 
   const totalValue = deals.reduce(
     (sum, deal) => sum + Number(deal.amount || 0),
@@ -78,224 +145,223 @@ export default function DealsPage() {
   );
 
   const totalCommission = deals.reduce(
-    (sum, deal) => sum + Number(deal.commission_amount || 0),
+    (sum, deal) =>
+      sum + Number(deal.commission_amount || 0),
     0
   );
 
-  const currencies = [
-    ...new Set(deals.map((deal) => deal.currency)),
-  ];
+  const currencies = [...new Set(deals.map((d) => d.currency))];
+  const singleCurrency = currencies.length === 1
+    ? currencies[0]
+    : null;
 
-  const oneCurrency =
-    currencies.length === 1 ? currencies[0] : null;
+  const cardStyle: React.CSSProperties = {
+    background: "#10213c",
+    border: "1px solid #294261",
+    borderRadius: 12,
+    padding: 20,
+  };
 
   return (
     <main
       style={{
-        minHeight: "100vh",
-        background: "#071225",
-        color: "#f5f7ff",
-        padding: "50px 20px",
+        maxWidth: 1050,
+        margin: "50px auto",
+        padding: "0 20px 60px",
+        color: "#f1f5f9",
       }}
     >
-      <div style={{ maxWidth: 1050, margin: "0 auto" }}>
-        <Link
-          href="/dashboard"
+      <Link
+        href="/dashboard"
+        style={{ color: "#d7ad59", textDecoration: "none" }}
+      >
+        ← Back to Dashboard
+      </Link>
+
+      <h1 style={{ fontSize: 30, marginTop: 15 }}>
+        Nexus Deals & Commissions
+      </h1>
+
+      <p style={{ color: "#9bb1cf" }}>
+        Track transaction values, deal stages and proposed commissions.
+      </p>
+
+      {error && (
+        <div
+          role="alert"
           style={{
-            color: "#e2b365",
-            textDecoration: "none",
+            background: "#481b29",
+            padding: 14,
+            borderRadius: 8,
+            marginBottom: 16,
           }}
         >
-          ← Back to Dashboard
-        </Link>
+          {error}
+        </div>
+      )}
 
-        <h1
+      {success && (
+        <div
+          role="status"
           style={{
-            fontSize: 32,
-            marginTop: 15,
-            fontWeight: "bold",
+            background: "#174d3c",
+            padding: 14,
+            borderRadius: 8,
+            marginBottom: 16,
           }}
         >
-          Nexus Deals & Commissions
-        </h1>
+          {success}
+        </div>
+      )}
 
-        <p style={{ color: "#9db8d9" }}>
-          Track transaction values and proposed Nexus commissions.
-        </p>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns:
+            "repeat(auto-fit, minmax(210px, 1fr))",
+          gap: 14,
+          marginTop: 25,
+        }}
+      >
+        <div style={cardStyle}>
+          <div style={{ color: "#9bb1cf" }}>Total Deals</div>
+          <h2>{deals.length}</h2>
+        </div>
 
-        {loading ? (
-          <p style={{ marginTop: 30 }}>
-            Loading deals...
-          </p>
-        ) : error ? (
-          <div
-            style={{
-              ...cardStyle,
-              marginTop: 30,
-              color: "#ff9292",
-            }}
-          >
-            {error}
+        <div style={cardStyle}>
+          <div style={{ color: "#9bb1cf" }}>Total Deal Value</div>
+          <h2>
+            {singleCurrency
+              ? formatMoney(totalValue, singleCurrency)
+              : "Multiple currencies"}
+          </h2>
+        </div>
+
+        <div style={cardStyle}>
+          <div style={{ color: "#9bb1cf" }}>
+            Calculated Commission
           </div>
-        ) : (
-          <>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns:
-                  "repeat(auto-fit, minmax(220px, 1fr))",
-                gap: 16,
-                marginTop: 30,
-              }}
-            >
-              <div style={cardStyle}>
-                <p style={{ color: "#9db8d9" }}>
-                  Total Deals
-                </p>
-                <h2 style={{ fontSize: 30 }}>
-                  {deals.length}
-                </h2>
-              </div>
+          <h2 style={{ color: "#e7b85e" }}>
+            {singleCurrency
+              ? formatMoney(totalCommission, singleCurrency)
+              : "Multiple currencies"}
+          </h2>
+        </div>
+      </div>
 
-              <div style={cardStyle}>
-                <p style={{ color: "#9db8d9" }}>
-                  Total Deal Value
-                </p>
-                <h2 style={{ fontSize: 26 }}>
-                  {deals.length === 0
-                    ? "0"
-                    : oneCurrency
-                    ? `${totalValue.toLocaleString()} ${oneCurrency}`
-                    : "Multiple currencies"}
-                </h2>
-              </div>
+      <h2 style={{ marginTop: 35 }}>Deal Records</h2>
 
-              <div style={cardStyle}>
-                <p style={{ color: "#9db8d9" }}>
-                  Calculated Commission
+      {loading ? (
+        <p>Loading deals...</p>
+      ) : deals.length === 0 ? (
+        <div style={cardStyle}>No deals recorded yet.</div>
+      ) : (
+        <div style={{ display: "grid", gap: 16 }}>
+          {deals.map((deal) => (
+            <div key={deal.id} style={cardStyle}>
+              <h3 style={{ color: "#ffffff", marginTop: 0 }}>
+                {formatMoney(deal.amount, deal.currency)}
+              </h3>
+
+              <p>
+                Status:{" "}
+                <strong style={{ color: "#e7b85e" }}>
+                  {deal.status.toUpperCase()}
+                </strong>
+              </p>
+
+              <p>
+                Commission Rate:{" "}
+                {Number(deal.commission_rate) * 100}%
+              </p>
+
+              <p style={{ color: "#e7b85e" }}>
+                Calculated Commission:{" "}
+                {formatMoney(
+                  deal.commission_amount,
+                  deal.currency
+                )}
+              </p>
+
+              <p style={{ color: "#9bb1cf" }}>
+                Created:{" "}
+                {new Date(deal.created_at).toLocaleDateString()}
+              </p>
+
+              <div style={{ marginTop: 20 }}>
+                <p style={{ fontWeight: 600 }}>
+                  Update Deal Status
                 </p>
-                <h2
+
+                <div
                   style={{
-                    color: "#e2b365",
-                    fontSize: 26,
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: 10,
                   }}
                 >
-                  {deals.length === 0
-                    ? "0"
-                    : oneCurrency
-                    ? `${totalCommission.toLocaleString()} ${oneCurrency}`
-                    : "Multiple currencies"}
-                </h2>
+                  {statuses.map((status) => (
+                    <button
+                      key={status}
+                      type="button"
+                      disabled={
+                        savingId === deal.id ||
+                        status === deal.status
+                      }
+                      onClick={() => updateStatus(deal, status)}
+                      style={{
+                        background:
+                          status === deal.status
+                            ? "#42536b"
+                            : "#d7ad59",
+                        color:
+                          status === deal.status
+                            ? "#ffffff"
+                            : "#081528",
+                        border: "none",
+                        borderRadius: 7,
+                        padding: "10px 14px",
+                        cursor:
+                          savingId === deal.id ||
+                          status === deal.status
+                            ? "not-allowed"
+                            : "pointer",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {savingId === deal.id
+                        ? "Saving..."
+                        : status.charAt(0).toUpperCase() +
+                          status.slice(1)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ marginTop: 22 }}>
+                <Link
+                  href={`/dashboard/messages/${deal.conversation_id}`}
+                  style={{ color: "#d7ad59" }}
+                >
+                  Open Conversation →
+                </Link>
               </div>
             </div>
+          ))}
+        </div>
+      )}
 
-            <h2
-              style={{
-                marginTop: 35,
-                marginBottom: 18,
-                fontSize: 24,
-              }}
-            >
-              Deal Records
-            </h2>
-
-            {deals.length === 0 ? (
-              <div style={cardStyle}>
-                <p style={{ color: "#9db8d9" }}>
-                  No deals recorded yet.
-                </p>
-              </div>
-            ) : (
-              <div
-                style={{
-                  display: "grid",
-                  gap: 16,
-                }}
-              >
-                {deals.map((deal) => (
-                  <div
-                    key={deal.id}
-                    style={cardStyle}
-                  >
-                    <h3
-                      style={{
-                        fontSize: 24,
-                        marginBottom: 12,
-                      }}
-                    >
-                      {Number(
-                        deal.amount
-                      ).toLocaleString()}{" "}
-                      {deal.currency}
-                    </h3>
-
-                    <p>
-                      Status:{" "}
-                      <strong>{deal.status}</strong>
-                    </p>
-
-                    <p style={{ marginTop: 10 }}>
-                      Commission Rate:{" "}
-                      {Number(
-                        deal.commission_rate
-                      ) * 100}
-                      %
-                    </p>
-
-                    <p
-                      style={{
-                        color: "#e2b365",
-                        marginTop: 10,
-                      }}
-                    >
-                      Calculated Commission:{" "}
-                      {Number(
-                        deal.commission_amount
-                      ).toLocaleString()}{" "}
-                      {deal.currency}
-                    </p>
-
-                    <p
-                      style={{
-                        color: "#9db8d9",
-                        marginTop: 10,
-                      }}
-                    >
-                      Created:{" "}
-                      {new Date(
-                        deal.created_at
-                      ).toLocaleDateString()}
-                    </p>
-
-                    <Link
-                      href={`/dashboard/messages/${deal.conversation_id}`}
-                      style={{
-                        display: "inline-block",
-                        color: "#e2b365",
-                        marginTop: 15,
-                      }}
-                    >
-                      Open Conversation →
-                    </Link>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <p
-              style={{
-                color: "#7792b4",
-                marginTop: 30,
-                fontSize: 13,
-              }}
-            >
-              Commission calculations are informational
-              only. Payment obligations require a
-              separately approved agreement.
-            </p>
-          </>
-        )}
-      </div>
+      <p
+        style={{
+          marginTop: 30,
+          color: "#8ca2c0",
+          fontSize: 12,
+        }}
+      >
+        Commission calculations are informational only.
+        Changing deal status does not establish payment
+        obligations or activate the draft brokerage agreement.
+      </p>
     </main>
   );
 }
