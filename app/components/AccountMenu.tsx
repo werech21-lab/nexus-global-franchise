@@ -22,6 +22,7 @@ type Message = {
   conversation_id: string
   sender_id: string
   created_at: string
+  body: string
 }
 
 type ReadState = {
@@ -33,12 +34,15 @@ type Notification = {
   conversationId: string
   count: number
   latestAt: string
+  preview: string
+  senderRole: string
 }
 
 export default function AccountMenu() {
   const router = useRouter()
   const menuRef = useRef<HTMLDivElement>(null)
   const currentUserRef = useRef<string | null>(null)
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const [account, setAccount] = useState<Account | null>(null)
   const [loading, setLoading] = useState(true)
@@ -48,9 +52,8 @@ export default function AccountMenu() {
   const [notifications, setNotifications] = useState<Notification[]>([])
 
   const loadNotifications = useCallback(async (userId: string) => {
-    if (!supabase) return
-
     const client = supabase
+    if (!client) return
 
     const { data: conversations, error: conversationError } =
       await client
@@ -59,7 +62,7 @@ export default function AccountMenu() {
         .or(`owner_id.eq.${userId},investor_id.eq.${userId}`)
 
     if (conversationError) {
-      console.error('Conversations:', conversationError)
+      console.error('Error loading conversations:', conversationError)
       return
     }
 
@@ -70,12 +73,14 @@ export default function AccountMenu() {
       return
     }
 
-    const ids = (conversations as Conversation[]).map((c) => c.id)
+    const ids = (conversations as Conversation[]).map(
+      (conversation) => conversation.id
+    )
 
     const [messagesResult, readsResult] = await Promise.all([
       client
         .from('messages')
-        .select('conversation_id, sender_id, created_at')
+        .select('conversation_id, sender_id, created_at, body')
         .in('conversation_id', ids)
         .neq('sender_id', userId)
         .order('created_at', { ascending: false })
@@ -89,8 +94,3 @@ export default function AccountMenu() {
     ])
 
     if (messagesResult.error || readsResult.error) {
-      console.error(
-        'Notifications:',
-        messagesResult.error || readsResult.error
-      )
-      return
