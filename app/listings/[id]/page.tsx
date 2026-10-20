@@ -31,11 +31,20 @@ export default function ListingDetails() {
   const [sending, setSending] = useState(false)
   const [inquiryResult, setInquiryResult] = useState('')
   const [inquirySent, setInquirySent] = useState(false)
+  const [alreadyInquired, setAlreadyInquired] = useState(false)
 
   useEffect(() => {
     let active = true
 
     async function load() {
+      setLoading(true)
+      setAuthLoading(true)
+      setError('')
+      setListing(null)
+      setInquirySent(false)
+      setAlreadyInquired(false)
+      setInquiryResult('')
+
       if (!supabase) {
         if (active) {
           setError('Supabase is not configured.')
@@ -51,7 +60,8 @@ export default function ListingDetails() {
 
       if (!active) return
 
-      setUserId(authData.user?.id || null)
+      const currentUserId = authData.user?.id || null
+      setUserId(currentUserId)
       setAuthLoading(false)
 
       const { data, error: fetchError } = await client
@@ -71,9 +81,28 @@ export default function ListingDetails() {
         setError('Opportunity not found.')
       } else {
         setListing(data)
+
+        if (currentUserId && currentUserId !== data.owner_id) {
+          const { data: existingInquiry, error: checkError } =
+            await client
+              .from('inquiries')
+              .select('id')
+              .eq('listing_id', data.id)
+              .eq('investor_id', currentUserId)
+              .limit(1)
+              .maybeSingle()
+
+          if (!active) return
+
+          if (!checkError && existingInquiry) {
+            setAlreadyInquired(true)
+          }
+        }
       }
 
-      setLoading(false)
+      if (active) {
+        setLoading(false)
+      }
     }
 
     if (id) {
@@ -90,7 +119,15 @@ export default function ListingDetails() {
   }, [id])
 
   async function sendInquiry() {
-    if (!supabase || !listing || sending || inquirySent) return
+    if (
+      !supabase ||
+      !listing ||
+      sending ||
+      inquirySent ||
+      alreadyInquired
+    ) {
+      return
+    }
 
     const message = inquiryMessage.trim()
 
@@ -130,6 +167,17 @@ export default function ListingDetails() {
         })
 
       if (insertError) {
+        if (
+          insertError.code === '23505' ||
+          insertError.message.includes(
+            'inquiries_listing_id_investor_id_key'
+          )
+        ) {
+          setAlreadyInquired(true)
+          setInquiryResult('')
+          return
+        }
+
         throw insertError
       }
 
@@ -137,6 +185,8 @@ export default function ListingDetails() {
       setInquiryMessage('')
       setInquiryResult('Your inquiry was sent successfully!')
     } catch (err) {
+      console.error('Inquiry submission error:', err)
+
       setInquiryResult(
         err instanceof Error
           ? err.message
@@ -238,6 +288,20 @@ export default function ListingDetails() {
             This is your opportunity.
             You cannot send an inquiry to yourself.
           </p>
+        ) : alreadyInquired ? (
+          <div
+            role="status"
+            className="rounded-lg border border-amber-600 bg-amber-900/20 p-4 text-amber-300"
+          >
+            <p className="font-bold">
+              Inquiry Already Submitted
+            </p>
+
+            <p className="mt-2">
+              You have already sent an inquiry for this
+              opportunity. The owner can review your request.
+            </p>
+          </div>
         ) : inquirySent ? (
           <div
             role="status"
