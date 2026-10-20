@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 
@@ -15,23 +15,46 @@ type Deal = {
   status: DealStatus;
   commission_rate: number;
   commission_amount: number;
+  investor_approved: boolean;
+  owner_approved: boolean;
+  investor_approved_at: string | null;
+  owner_approved_at: string | null;
   created_at: string;
 };
 
-const statuses: DealStatus[] = [
-  "negotiating",
-  "agreed",
-  "completed",
-];
+type Conversation = {
+  id: string;
+  investor_id: string;
+  owner_id: string;
+};
+
+type DealWithRole = Deal & {
+  isInvestor: boolean;
+  isOwner: boolean;
+};
+
+const cardStyle: React.CSSProperties = {
+  background: "#10213c",
+  border: "1px solid #294261",
+  borderRadius: 12,
+  padding: 20,
+};
+
+function formatMoney(amount: number, currency: string) {
+  return `${Number(amount || 0).toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })} ${currency}`;
+}
 
 export default function DealsPage() {
-  const [deals, setDeals] = useState<Deal[]>([]);
+  const [deals, setDeals] = useState<DealWithRole[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  async function loadDeals() {
+  const loadDeals = useCallback(async () => {
     setLoading(true);
     setError("");
 
@@ -47,16 +70,56 @@ export default function DealsPage() {
         throw new Error("Please log in to view your deals.");
       }
 
-      const { data, error: dealsError } = await supabase
+      const userId = authData.user.id;
+
+      const { data: dealData, error: dealsError } = await supabase
         .from("deals")
         .select(
-          "id, conversation_id, amount, currency, status, commission_rate, commission_amount, created_at"
+          "id, conversation_id, amount, currency, status, commission_rate, commission_amount, investor_approved, owner_approved, investor_approved_at, owner_approved_at, created_at"
         )
         .order("created_at", { ascending: false });
 
       if (dealsError) throw dealsError;
 
-      setDeals((data || []) as Deal[]);
+      const records = (dealData || []) as Deal[];
+
+      if (records.length === 0) {
+        setDeals([]);
+        return;
+      }
+
+      const conversationIds = [
+        ...new Set(records.map((deal) => deal.conversation_id)),
+      ];
+
+      const { data: conversationData, error: conversationError } =
+        await supabase
+          .from("conversations")
+          .select("id, investor_id, owner_id")
+          .in("id", conversationIds);
+
+      if (conversationError) throw conversationError;
+
+      const conversations = new Map(
+        ((conversationData || []) as Conversation[]).map((item) => [
+          item.id,
+          item,
+        ])
+      );
+
+      const visibleDeals: DealWithRole[] = records
+        .map((deal) => {
+          const conversation = conversations.get(deal.conversation_id);
+
+          return {
+            ...deal,
+            isInvestor: conversation?.investor_id === userId,
+            isOwner: conversation?.owner_id === userId,
+          };
+        })
+        .filter((deal) => deal.isInvestor || deal.isOwner);
+
+      setDeals(visibleDeals);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to load deals."
@@ -64,20 +127,33 @@ export default function DealsPage() {
     } finally {
       setLoading(false);
     }
-  }
-
-  useEffect(() => {
-    loadDeals();
   }, []);
 
-  async function updateStatus(
-    deal: Deal,
-    newStatus: DealStatus
+  useEffect(() => {
+    void loadDeals();
+  }, [loadDeals]);
+
+  async function approveDeal(
+    deal: DealWithRole,
+    role: "investor" | "owner"
   ) {
-    if (deal.status === newStatus) return;
+    if (savingId) return;
+
+    if (role === "investor" && !deal.isInvestor) return;
+    if (role === "owner" && !deal.isOwner) return;
+
+    const alreadyApproved =
+      role === "investor"
+        ? deal.investor_approved
+        : deal.owner_approved;
+
+    if (alreadyApproved) return;
 
     const confirmed = window.confirm(
-      `Change deal status from "${deal.status}" to "${newStatus}"?`
+      `Confirm your approval of this ${formatMoney(
+        deal.amount,
+        deal.currency
+      )} deal?`
     );
 
     if (!confirmed) return;
@@ -98,45 +174,60 @@ export default function DealsPage() {
         throw new Error("Please log in first.");
       }
 
+      const { data: conversation, error: conversationError } =
+        await supabase
+          .from("conversations")
+          .select("investor_id, owner_id")
+          .eq("id", deal.conversation_id)
+          .single();
+
+      if (conversationError) throw conversationError;
+
+      const expectedUserId =
+        role === "investor"
+          ? conversation.investor_id
+          : conversation.owner_id;
+
+      if (authData.user.id !== expectedUserId) {
+        throw new Error("You are not authorized to approve this deal.");
+      }
+
+      const approvalColumn =
+        role === "investor"
+          ? "investor_approved"
+          : "owner_approved";
+
       const { data, error: updateError } = await supabase
         .from("deals")
-        .update({ status: newStatus })
+        .update({ [approvalColumn]: true })
         .eq("id", deal.id)
-        .eq("status", deal.status)
-        .select("id, status")
-        .single();
+        .eq("conversation_id", deal.conversation_id)
+        .eq(approvalColumn, false)
+        .select("id")
+        .maybeSingle();
 
       if (updateError) throw updateError;
 
       if (!data) {
-        throw new Error("Deal could not be updated.");
+        throw new Error(
+          "Approval was not saved. The deal may already be approved."
+        );
       }
 
-      setDeals((previous) =>
-        previous.map((item) =>
-          item.id === deal.id
-            ? { ...item, status: data.status as DealStatus }
-            : item
-        )
-      );
+      await loadDeals();
 
-      setSuccess("Deal status updated successfully.");
+      setSuccess(
+        role === "investor"
+          ? "Investor approval recorded successfully."
+          : "Owner approval recorded successfully."
+      );
     } catch (err) {
       setError(
-        err instanceof Error
-          ? err.message
-          : "Failed to update deal status."
+        err instanceof Error ? err.message : "Failed to approve deal."
       );
     } finally {
       setSavingId(null);
     }
-  }
-
-  function formatMoney(amount: number, currency: string) {
-    return `${Number(amount || 0).toLocaleString("en-US", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })} ${currency}`;
   }
 
   const totalValue = deals.reduce(
@@ -145,22 +236,13 @@ export default function DealsPage() {
   );
 
   const totalCommission = deals.reduce(
-    (sum, deal) =>
-      sum + Number(deal.commission_amount || 0),
+    (sum, deal) => sum + Number(deal.commission_amount || 0),
     0
   );
 
-  const currencies = [...new Set(deals.map((d) => d.currency))];
-  const singleCurrency = currencies.length === 1
-    ? currencies[0]
-    : null;
-
-  const cardStyle: React.CSSProperties = {
-    background: "#10213c",
-    border: "1px solid #294261",
-    borderRadius: 12,
-    padding: 20,
-  };
+  const currencies = [...new Set(deals.map((deal) => deal.currency))];
+  const singleCurrency =
+    currencies.length === 1 ? currencies[0] : null;
 
   return (
     <main
@@ -183,7 +265,8 @@ export default function DealsPage() {
       </h1>
 
       <p style={{ color: "#9bb1cf" }}>
-        Track transaction values, deal stages and proposed commissions.
+        Track transaction values, deal stages, approvals and proposed
+        commissions.
       </p>
 
       {error && (
@@ -233,7 +316,9 @@ export default function DealsPage() {
           <h2>
             {singleCurrency
               ? formatMoney(totalValue, singleCurrency)
-              : "Multiple currencies"}
+              : deals.length === 0
+                ? "0"
+                : "Multiple currencies"}
           </h2>
         </div>
 
@@ -244,7 +329,9 @@ export default function DealsPage() {
           <h2 style={{ color: "#e7b85e" }}>
             {singleCurrency
               ? formatMoney(totalCommission, singleCurrency)
-              : "Multiple currencies"}
+              : deals.length === 0
+                ? "0"
+                : "Multiple currencies"}
           </h2>
         </div>
       </div>
@@ -257,97 +344,167 @@ export default function DealsPage() {
         <div style={cardStyle}>No deals recorded yet.</div>
       ) : (
         <div style={{ display: "grid", gap: 16 }}>
-          {deals.map((deal) => (
-            <div key={deal.id} style={cardStyle}>
-              <h3 style={{ color: "#ffffff", marginTop: 0 }}>
-                {formatMoney(deal.amount, deal.currency)}
-              </h3>
+          {deals.map((deal) => {
+            const bothApproved =
+              deal.investor_approved && deal.owner_approved;
 
-              <p>
-                Status:{" "}
-                <strong style={{ color: "#e7b85e" }}>
-                  {deal.status.toUpperCase()}
-                </strong>
-              </p>
+            return (
+              <div key={deal.id} style={cardStyle}>
+                <h3 style={{ color: "#ffffff", marginTop: 0 }}>
+                  {formatMoney(deal.amount, deal.currency)}
+                </h3>
 
-              <p>
-                Commission Rate:{" "}
-                {Number(deal.commission_rate) * 100}%
-              </p>
+                <p>
+                  Status:{" "}
+                  <strong style={{ color: "#e7b85e" }}>
+                    {deal.status.toUpperCase()}
+                  </strong>
+                </p>
 
-              <p style={{ color: "#e7b85e" }}>
-                Calculated Commission:{" "}
-                {formatMoney(
-                  deal.commission_amount,
-                  deal.currency
-                )}
-              </p>
+                <p>
+                  Your Role:{" "}
+                  <strong>
+                    {deal.isInvestor && deal.isOwner
+                      ? "Investor & Owner"
+                      : deal.isInvestor
+                        ? "Investor"
+                        : "Owner"}
+                  </strong>
+                </p>
 
-              <p style={{ color: "#9bb1cf" }}>
-                Created:{" "}
-                {new Date(deal.created_at).toLocaleDateString()}
-              </p>
+                <p>
+                  Commission Rate:{" "}
+                  {Number(deal.commission_rate) * 100}%
+                </p>
 
-              <div style={{ marginTop: 20 }}>
-                <p style={{ fontWeight: 600 }}>
-                  Update Deal Status
+                <p style={{ color: "#e7b85e" }}>
+                  Calculated Commission:{" "}
+                  {formatMoney(
+                    deal.commission_amount,
+                    deal.currency
+                  )}
+                </p>
+
+                <p style={{ color: "#9bb1cf" }}>
+                  Created:{" "}
+                  {new Date(deal.created_at).toLocaleDateString()}
                 </p>
 
                 <div
                   style={{
-                    display: "flex",
-                    flexWrap: "wrap",
-                    gap: 10,
+                    marginTop: 22,
+                    borderTop: "1px solid #294261",
+                    paddingTop: 18,
                   }}
                 >
-                  {statuses.map((status) => (
-                    <button
-                      key={status}
-                      type="button"
-                      disabled={
-                        savingId === deal.id ||
-                        status === deal.status
-                      }
-                      onClick={() => updateStatus(deal, status)}
+                  <h3>Deal Approvals</h3>
+
+                  <p>
+                    Investor:{" "}
+                    <strong
                       style={{
-                        background:
-                          status === deal.status
-                            ? "#42536b"
-                            : "#d7ad59",
-                        color:
-                          status === deal.status
-                            ? "#ffffff"
-                            : "#081528",
+                        color: deal.investor_approved
+                          ? "#6ee7b7"
+                          : "#fbbf24",
+                      }}
+                    >
+                      {deal.investor_approved
+                        ? "Approved"
+                        : "Pending"}
+                    </strong>
+                  </p>
+
+                  <p>
+                    Owner:{" "}
+                    <strong
+                      style={{
+                        color: deal.owner_approved
+                          ? "#6ee7b7"
+                          : "#fbbf24",
+                      }}
+                    >
+                      {deal.owner_approved
+                        ? "Approved"
+                        : "Pending"}
+                    </strong>
+                  </p>
+
+                  {deal.isInvestor && !deal.investor_approved && (
+                    <button
+                      type="button"
+                      disabled={savingId !== null}
+                      onClick={() => approveDeal(deal, "investor")}
+                      style={{
+                        background: "#d7ad59",
+                        color: "#081528",
                         border: "none",
                         borderRadius: 7,
-                        padding: "10px 14px",
-                        cursor:
-                          savingId === deal.id ||
-                          status === deal.status
-                            ? "not-allowed"
-                            : "pointer",
-                        fontWeight: 600,
+                        padding: "11px 16px",
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        marginRight: 10,
+                        marginBottom: 10,
                       }}
                     >
                       {savingId === deal.id
                         ? "Saving..."
-                        : status.charAt(0).toUpperCase() +
-                          status.slice(1)}
+                        : "Approve as Investor"}
                     </button>
-                  ))}
+                  )}
+
+                  {deal.isOwner && !deal.owner_approved && (
+                    <button
+                      type="button"
+                      disabled={savingId !== null}
+                      onClick={() => approveDeal(deal, "owner")}
+                      style={{
+                        background: "#d7ad59",
+                        color: "#081528",
+                        border: "none",
+                        borderRadius: 7,
+                        padding: "11px 16px",
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        marginBottom: 10,
+                      }}
+                    >
+                      {savingId === deal.id
+                        ? "Saving..."
+                        : "Approve as Owner"}
+                    </button>
+                  )}
+
+                  {bothApproved ? (
+                    <p style={{ color: "#6ee7b7" }}>
+                      Both parties have approved this deal.
+                    </p>
+                  ) : (
+                    <p style={{ color: "#9bb1cf" }}>
+                      Both parties must approve before a new deal
+                      can be marked completed.
+                    </p>
+                  )}
+
+                  {deal.status === "completed" &&
+                    !bothApproved && (
+                      <p style={{ color: "#fbbf24" }}>
+                        Legacy completed deal: approvals were not
+                        recorded before the new approval system.
+                      </p>
+                    )}
+                </div>
+
+                <div style={{ marginTop: 22 }}>
+                  <Link
+                    href={`/dashboard/messages/${deal.conversation_id}`}
+                    style={{ color: "#d7ad59" }}
+                  >
+                    Open Conversation →
+                  </Link>
                 </div>
               </div>
-
-              <div style={{ marginTop: 22 }}>
-                <Link
-                  href={`/dashboard/messages/${deal.conversation_id}`}
-                  style={{ color: "#d7ad59" }}
-                >
-                  Open Conversation →
-                </Link>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -359,8 +516,8 @@ export default function DealsPage() {
         }}
       >
         Commission calculations are informational only.
-        Changing deal status does not establish payment
-        obligations or activate the draft brokerage agreement.
+        Deal approval does not establish payment obligations
+        or activate the draft brokerage agreement.
       </p>
     </main>
   );
