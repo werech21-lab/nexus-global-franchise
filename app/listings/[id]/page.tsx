@@ -61,6 +61,7 @@ export default function ListingDetails() {
       if (!active) return
 
       const currentUserId = authData.user?.id || null
+
       setUserId(currentUserId)
       setAuthLoading(false)
 
@@ -82,15 +83,20 @@ export default function ListingDetails() {
       } else {
         setListing(data)
 
-        if (currentUserId && currentUserId !== data.owner_id) {
-          const { data: existingInquiry, error: checkError } =
-            await client
-              .from('inquiries')
-              .select('id')
-              .eq('listing_id', data.id)
-              .eq('investor_id', currentUserId)
-              .limit(1)
-              .maybeSingle()
+        if (
+          currentUserId &&
+          currentUserId !== data.owner_id
+        ) {
+          const {
+            data: existingInquiry,
+            error: checkError
+          } = await client
+            .from('inquiries')
+            .select('id')
+            .eq('listing_id', data.id)
+            .eq('investor_id', currentUserId)
+            .limit(1)
+            .maybeSingle()
 
           if (!active) return
 
@@ -131,8 +137,17 @@ export default function ListingDetails() {
 
     const message = inquiryMessage.trim()
 
-    if (!message) {
-      setInquiryResult('Please enter your message.')
+    if (message.length < 10) {
+      setInquiryResult(
+        'Please enter a message of at least 10 characters.'
+      )
+      return
+    }
+
+    if (message.length > 2000) {
+      setInquiryResult(
+        'Your message must not exceed 2000 characters.'
+      )
       return
     }
 
@@ -167,14 +182,16 @@ export default function ListingDetails() {
         })
 
       if (insertError) {
-        if (
-          insertError.code === '23505' ||
-          insertError.message.includes(
-            'inquiries_listing_id_investor_id_key'
-          )
-        ) {
+        if (insertError.code === '23505') {
           setAlreadyInquired(true)
           setInquiryResult('')
+          return
+        }
+
+        if (insertError.code === '23514') {
+          setInquiryResult(
+            'Your message does not meet the required length. Please enter between 10 and 2000 characters.'
+          )
           return
         }
 
@@ -322,19 +339,28 @@ export default function ListingDetails() {
               id="inquiry-message"
               className="w-full rounded-lg border border-slate-600 bg-slate-900 p-4 text-white outline-none focus:border-amber-400"
               rows={5}
+              minLength={10}
               maxLength={2000}
               placeholder="Hello, I am interested in this investment opportunity. I would like to learn more..."
               value={inquiryMessage}
-              onChange={(e) =>
+              onChange={(e) => {
                 setInquiryMessage(e.target.value)
-              }
+                setInquiryResult('')
+              }}
             />
+
+            <p className="text-sm text-slate-400">
+              Minimum 10 characters — Maximum 2000 characters.
+            </p>
 
             <button
               type="button"
               className="btn"
               onClick={sendInquiry}
-              disabled={sending || !inquiryMessage.trim()}
+              disabled={
+                sending ||
+                inquiryMessage.trim().length < 10
+              }
             >
               {sending ? 'Sending...' : 'Send Inquiry'}
             </button>
