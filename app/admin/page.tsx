@@ -31,6 +31,12 @@ const cardStyle: React.CSSProperties = {
   padding: 20,
 };
 
+const gridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  gap: 15,
+};
+
 export default function AdminDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [authorized, setAuthorized] = useState(false);
@@ -74,9 +80,7 @@ export default function AdminDashboardPage() {
         await Promise.all([
           supabase
             .from("deals")
-            .select(
-              "id, amount, currency, status, commission_amount"
-            ),
+            .select("id, amount, currency, status, commission_amount"),
           supabase
             .from("commission_payments")
             .select("id, status, deal_id"),
@@ -176,6 +180,33 @@ export default function AdminDashboardPage() {
     },
   ];
 
+  const managementLinks = [
+    {
+      title: "💰 Commission Management",
+      description:
+        "View payments and confirm received commissions.",
+      href: "/admin/commissions",
+    },
+    {
+      title: "🤝 Deal Management",
+      description:
+        "Review deals, approvals and commissions.",
+      href: "/dashboard/deals",
+    },
+    {
+      title: "🏢 Opportunities",
+      description:
+        "Manage your franchise opportunities.",
+      href: "/dashboard",
+    },
+    {
+      title: "👥 Users Management",
+      description:
+        "View registered users, emails, registration dates and sign-in activity.",
+      href: "/admin/users",
+    },
+  ];
+
   return (
     <main
       style={{
@@ -249,10 +280,7 @@ export default function AdminDashboardPage() {
 
           <div
             style={{
-              display: "grid",
-              gridTemplateColumns:
-                "repeat(auto-fit, minmax(210px, 1fr))",
-              gap: 15,
+              ...gridStyle,
               marginBottom: 25,
             }}
           >
@@ -285,10 +313,7 @@ export default function AdminDashboardPage() {
 
           <div
             style={{
-              display: "grid",
-              gridTemplateColumns:
-                "repeat(auto-fit, minmax(250px, 1fr))",
-              gap: 15,
+              ...gridStyle,
               marginBottom: 35,
             }}
           >
@@ -315,64 +340,37 @@ export default function AdminDashboardPage() {
             Management Center
           </h2>
 
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns:
-                "repeat(auto-fit, minmax(240px, 1fr))",
-              gap: 15,
-            }}
-          >
-            <Link
-              href="/admin/commissions"
-              style={{
-                ...cardStyle,
-                textDecoration: "none",
-                color: "#f1f5f9",
-              }}
-            >
-              <h3>💰 Commission Management</h3>
-              <p style={{ color: "#94a3b8" }}>
-                View payments and confirm received commissions.
-              </p>
-              <strong style={{ color: "#d4a039" }}>
-                Open →
-              </strong>
-            </Link>
+          <div style={gridStyle}>
+            {managementLinks.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                style={{
+                  ...cardStyle,
+                  textDecoration: "none",
+                  color: "#f1f5f9",
+                  display: "block",
+                }}
+              >
+                <h3 style={{ marginBottom: 12 }}>
+                  {item.title}
+                </h3>
 
-            <Link
-              href="/dashboard/deals"
-              style={{
-                ...cardStyle,
-                textDecoration: "none",
-                color: "#f1f5f9",
-              }}
-            >
-              <h3>🤝 Deal Management</h3>
-              <p style={{ color: "#94a3b8" }}>
-                Review deals, approvals and commissions.
-              </p>
-              <strong style={{ color: "#d4a039" }}>
-                Open →
-              </strong>
-            </Link>
+                <p
+                  style={{
+                    color: "#94a3b8",
+                    lineHeight: 1.6,
+                    minHeight: 50,
+                  }}
+                >
+                  {item.description}
+                </p>
 
-            <Link
-              href="/dashboard"
-              style={{
-                ...cardStyle,
-                textDecoration: "none",
-                color: "#f1f5f9",
-              }}
-            >
-              <h3>🏢 Opportunities</h3>
-              <p style={{ color: "#94a3b8" }}>
-                Manage your franchise opportunities.
-              </p>
-              <strong style={{ color: "#d4a039" }}>
-                Open →
-              </strong>
-            </Link>
+                <strong style={{ color: "#d4a039" }}>
+                  Open →
+                </strong>
+              </Link>
+            ))}
           </div>
 
           <p
@@ -380,6 +378,7 @@ export default function AdminDashboardPage() {
               marginTop: 30,
               color: "#64748b",
               fontSize: 12,
+              lineHeight: 1.6,
             }}
           >
             Financial totals include KWD-denominated deals only.
