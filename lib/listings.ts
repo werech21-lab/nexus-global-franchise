@@ -33,6 +33,8 @@ export {
 
 export const LISTING_PAGE_SIZE = 12
 export const MAX_LISTING_IMAGES = 8
+// Matches the listing-images bucket file_size_limit (5 MB).
+export const MAX_LISTING_IMAGE_BYTES = 5 * 1024 * 1024
 
 export type ListingSort = 'newest' | 'investment_asc' | 'investment_desc'
 

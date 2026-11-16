@@ -7,6 +7,7 @@ import {
   COUNTRIES,
   INDUSTRIES,
   MAX_LISTING_IMAGES,
+  MAX_LISTING_IMAGE_BYTES,
   OPPORTUNITY_TYPES,
   emptyListingFormValues,
   countryLabel,
@@ -135,9 +136,14 @@ export default function ListingForm({
 
   function onFilesSelected(files: FileList | null) {
     if (!files) return
-    const images = Array.from(files).filter(file => file.type.startsWith('image/'))
-    if (images.length !== files.length) {
+    const all = Array.from(files)
+    const images = all.filter(
+      file => file.type.startsWith('image/') && file.size <= MAX_LISTING_IMAGE_BYTES
+    )
+    if (all.some(file => !file.type.startsWith('image/'))) {
       setError(t.listingForm.imageType)
+    } else if (images.length !== all.length) {
+      setError(t.listingForm.imageTooLarge)
     }
     const room = MAX_LISTING_IMAGES - visibleExisting.length - imageFiles.length
     if (images.length > room) {
@@ -380,7 +386,7 @@ export default function ListingForm({
         <input
           id="listing-images"
           type="file"
-          accept="image/*"
+          accept="image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif"
           multiple
           onChange={event => onFilesSelected(event.target.files)}
         />

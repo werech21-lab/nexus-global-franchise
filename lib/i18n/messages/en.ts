@@ -25,8 +25,6 @@ export const en = {
     privacy: 'Privacy',
     terms: 'Terms',
     copyright: 'Nexus Global Franchise',
-    placeholderNote:
-      'Footer and legal pages are placeholders until the site owner finalizes them.',
   },
   common: {
     back: 'Back',
@@ -227,6 +225,7 @@ export const en = {
     rejectedHint: 'This listing was not approved. Update it and submit it for review again.',
     rejectionReason: 'Reason',
     imageType: 'Please choose image files only.',
+    imageTooLarge: 'Each photo must be 5 MB or smaller.',
     tooManyImages: 'You can add up to {max} images.',
     investmentInvalid: 'Investment amounts must be valid numbers, and the minimum cannot exceed the maximum.',
   },
@@ -331,6 +330,12 @@ export const en = {
     enterHint: 'Enter to send · Shift + Enter for a new line',
   },
   deals: {
+    statusLabels: {
+      negotiating: 'Awaiting approvals',
+      agreed: 'Agreed',
+      completed: 'Completed',
+      cancelled: 'Cancelled',
+    },
     title: 'Nexus Deals & Commissions',
     intro:
       'Review your deals, approvals and calculated commissions.',
@@ -613,21 +618,168 @@ export const en = {
     signInToAccept: 'Sign in to record an acknowledgement of this draft.',
 
   },
-  placeholders: {
-    banner:
-      'Placeholder — the site owner will finalize this page. No legal or contact details should be assumed from this draft.',
-    aboutTitle: 'About',
-    aboutBody:
-      'This About page is a placeholder. The site owner will add an accurate description of Nexus Global Franchise, its purpose, and who operates it.',
-    contactTitle: 'Contact',
-    contactBody:
-      'This Contact page is a placeholder. The site owner will add official contact methods when they are ready to publish. No email, phone, or address is listed here yet.',
-    privacyTitle: 'Privacy',
-    privacyBody:
-      'This Privacy page is a placeholder. The site owner will publish a reviewed privacy policy before relying on this page. Do not treat this draft as a legal policy.',
-    termsTitle: 'Terms',
-    termsBody:
-      'This Terms page is a placeholder. The site owner will publish reviewed terms of use before relying on this page. Do not treat this draft as a binding agreement.',
+  legal: {
+    updated: 'Last updated: 16 November 2026',
+    subjectToUpdate:
+      'This page may be updated as the platform develops. Material changes will be posted here with a new date.',
+    founderLabel: 'Founder',
+    founder: 'Abdullah Abdulghafar Awirah, Founder & CEO',
+    emailLabel: 'Email',
+    phoneLabel: 'Phone',
+    addressLabel: 'Address',
+    email: 'sanadpay.sy@gmail.com',
+    phone: '+965 9914 2158',
+    phoneHref: '+96599142158',
+    address: 'Office 10, 3rd Floor, Al-Helali Building, Al-Shuhada St., Sharq, Kuwait City, Kuwait',
+    about: {
+      title: 'About Nexus Global Franchise',
+      meta: 'Nexus Global Franchise is an online marketplace in Kuwait connecting franchise, business-for-sale and partnership opportunities with investors.',
+      intro:
+        'Nexus Global Franchise is an online marketplace based in Kuwait City. It connects owners of franchise opportunities, businesses for sale, exclusive agencies and partnerships with investors who are looking for them.',
+      sections: [
+        {
+          heading: 'How the platform works',
+          body: [
+            'Opportunity owners create a listing. Each listing is reviewed by the site administrator before it is published.',
+            'Investors browse published listings, save the ones they like and send an inquiry to the owner.',
+            'When an owner accepts an inquiry, a private conversation opens between the two parties. If they reach an agreement, they can record the deal on the platform, and both parties approve it.',
+          ],
+        },
+        {
+          heading: 'How Nexus is paid',
+          body: [
+            'Nexus proposes a success commission of 2% of the deal value on a completed deal recorded through the platform, payable by the opportunity owner. The details are on the Deal Protection page.',
+          ],
+        },
+        {
+          heading: 'What Nexus does not do',
+          body: [
+            'Nexus is not a party to the agreements between owners and investors, and does not give investment, legal or financial advice. Listing review checks basic quality, not the accuracy of every figure. Please do your own due diligence before any investment.',
+          ],
+        },
+      ],
+    },
+    contact: {
+      title: 'Contact us',
+      meta: 'Contact Nexus Global Franchise by email or phone, or visit our office in Sharq, Kuwait City.',
+      intro:
+        'For questions about the platform, your account, a listing you published or a deal, contact us using the details below. For questions about a specific opportunity, use the inquiry form on that listing.',
+    },
+    privacy: {
+      title: 'Privacy policy',
+      meta: 'How Nexus Global Franchise collects, uses and protects your information.',
+      intro:
+        'This policy explains what information Nexus Global Franchise collects when you use the site, how it is used and the choices you have.',
+      sections: [
+        {
+          heading: 'Information we collect',
+          body: [
+            'Account information: your email address and password. Sign-in is handled by our authentication provider (Supabase); passwords are stored in hashed form and are not visible to us.',
+            'Profile information you choose to add, such as a display name and a short bio.',
+            'Content you submit: listings and their photos, inquiries, messages, deal records and approvals, and acknowledgements of the brokerage agreement.',
+            'Cookies needed for the site to work: a sign-in session cookie and a cookie that remembers your language. We do not use advertising cookies or third-party analytics.',
+            'Technical logs kept by our hosting and database providers, such as IP address and request times, for security and reliability.',
+          ],
+        },
+        {
+          heading: 'How we use it',
+          body: [
+            'To run the marketplace: show listings, deliver inquiries and messages, record deals and track commissions.',
+            'To send you service emails, for example when you receive a new inquiry or message.',
+            'To review listings, prevent misuse and keep the platform secure.',
+          ],
+        },
+        {
+          heading: 'Who can see your information',
+          body: [
+            'Published listings and your public profile (display name and bio) are visible to anyone.',
+            'Inquiries and messages are visible only to the people taking part in them. Deal records are visible to the deal parties and to the site administrator.',
+            'The site administrator can access account and listing records to operate and moderate the service.',
+            'We do not sell your personal information.',
+          ],
+        },
+        {
+          heading: 'Service providers',
+          body: [
+            'We use Supabase for the database, sign-in and file storage, Vercel to host the website, and an email delivery provider for notifications. They process data on our behalf to provide these services.',
+          ],
+        },
+        {
+          heading: 'Retention and your choices',
+          body: [
+            'You can edit your profile and edit or delete your own listings at any time from your dashboard.',
+            'To request a copy, correction or deletion of your information, or to close your account, email us. Some records, such as completed deals and commission records, may be kept where needed for accounting or legal reasons.',
+          ],
+        },
+        {
+          heading: 'Security',
+          body: [
+            'Access to data is restricted at the database level, and listing photos are stored privately and shared through time-limited links. No online service can guarantee complete security, so please use a strong, unique password.',
+          ],
+        },
+        {
+          heading: 'Age',
+          body: ['The platform is intended for adults aged 18 or over.'],
+        },
+      ],
+    },
+    terms: {
+      title: 'Terms of use',
+      meta: 'The terms that apply when you use the Nexus Global Franchise marketplace.',
+      intro:
+        'By creating an account or using Nexus Global Franchise, you agree to these terms. If you do not agree, please do not use the site.',
+      sections: [
+        {
+          heading: 'The service',
+          body: [
+            'Nexus Global Franchise is an online marketplace where opportunity owners publish franchise, business-for-sale, exclusive agency and partnership opportunities, and investors can contact them. Nexus helps the parties meet and record deals. It is not a party to the agreements between them.',
+          ],
+        },
+        {
+          heading: 'Your account',
+          body: [
+            'You must be 18 or over and give accurate information. Keep your password secure; you are responsible for activity on your account.',
+          ],
+        },
+        {
+          heading: 'Listings',
+          body: [
+            'If you publish a listing, you confirm that you are entitled to offer the opportunity and that the information and photos are accurate and do not infringe anyone else’s rights.',
+            'Listings are reviewed before publication. The administrator may reject, unpublish or remove a listing that is misleading, incomplete, unlawful or against these terms.',
+          ],
+        },
+        {
+          heading: 'Inquiries and messages',
+          body: [
+            'Use inquiries and messages only for genuine business discussions. Spam, harassment and attempts to collect other users’ information for unrelated purposes are not allowed.',
+          ],
+        },
+        {
+          heading: 'No investment advice',
+          body: [
+            'Content on the site is provided by its users. Nexus does not give investment, legal or financial advice and does not guarantee any listing, figure or outcome. Verify every opportunity independently before you commit.',
+          ],
+        },
+        {
+          heading: 'Success commission',
+          body: [
+            'Nexus proposes a success commission of 2% of the deal value on a deal completed between parties introduced through the platform, payable by the opportunity owner. The final terms are set out in the brokerage agreement on the Deal Protection page, which is still being finalized.',
+          ],
+        },
+        {
+          heading: 'Liability',
+          body: [
+            'The site is provided as is. To the extent permitted by law, Nexus is not responsible for losses arising from dealings between users or from reliance on listing content.',
+          ],
+        },
+        {
+          heading: 'Suspension',
+          body: [
+            'We may suspend or close accounts that break these terms or misuse the platform.',
+          ],
+        },
+      ],
+    },
   },
   user: {
     unknown: 'Unknown user',
