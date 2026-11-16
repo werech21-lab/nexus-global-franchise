@@ -1,2 +1,35 @@
+
 import Link from 'next/link'
-export default function Home(){return <div className="py-16 space-y-8"><p className="uppercase tracking-widest text-amber-300">Worldwide business opportunities</p><h1 className="text-5xl font-bold max-w-3xl leading-tight">Grow beyond borders with Nexus Global Franchise.</h1><p className="text-xl text-slate-300 max-w-2xl">Discover franchises, businesses for sale, exclusive agencies and strategic partnerships worldwide.</p><div className="flex gap-4 flex-wrap"><Link className="btn" href="/listings">Explore Opportunities</Link><Link className="btn" href="/listings/new">List Your Opportunity</Link></div><div className="grid md:grid-cols-3 gap-4 pt-10">{['Franchise Rights','Business for Sale','Strategic Partnership'].map(x=><div className="card" key={x}><h2 className="text-xl font-bold">{x}</h2><p className="text-slate-300 mt-3">Connect with qualified partners and investors.</p></div>)}</div></div>}
+import { copy } from '@/lib/copy'
+import FeaturedListings from './components/FeaturedListings'
+
+export default function Home() {
+  return (
+    <div className="space-y-8 py-12">
+      <p className="uppercase tracking-widest text-amber-300">{copy.home.kicker}</p>
+      <h1 className="max-w-3xl text-4xl font-bold leading-tight md:text-5xl">
+        {copy.home.title}
+      </h1>
+      <p className="max-w-2xl text-xl text-slate-300">{copy.home.intro}</p>
+      <div className="flex flex-wrap gap-4">
+        <Link className="btn" href="/listings">
+          {copy.home.explore}
+        </Link>
+        <Link className="btn" href="/listings/new">
+          {copy.home.list}
+        </Link>
+      </div>
+
+      <div className="grid gap-4 pt-6 sm:grid-cols-2 lg:grid-cols-4">
+        {copy.home.cards.map(card => (
+          <div className="card" key={card.key}>
+            <h2 className="text-xl font-bold">{card.title}</h2>
+            <p className="mt-3 text-slate-300">{card.body}</p>
+          </div>
+        ))}
+      </div>
+
+      <FeaturedListings />
+    </div>
+  )
+}
