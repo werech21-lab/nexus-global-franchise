@@ -1,9 +1,12 @@
--- Phase 3: listing image storage bucket, listing_images table, and RLS.
+-- Phase 3: private listing-images bucket, listing_images table, and RLS.
 -- APPLY MANUALLY. Idempotent.
+-- The bucket is private. The app reads images with signed URLs.
+-- Storage and table SELECT policies are split so public reads of published
+-- listing images never call is_nexus_admin().
 
 insert into storage.buckets (id, name, public)
-values ('listing-images', 'listing-images', true)
-on conflict (id) do update set public = excluded.public;
+values ('listing-images', 'listing-images', false)
+on conflict (id) do update set public = false;
 
 create table if not exists public.listing_images (
   id uuid primary key default gen_random_uuid(),
@@ -20,18 +23,30 @@ create index if not exists listing_images_listing_idx
 alter table public.listing_images enable row level security;
 
 drop policy if exists "Read images for visible listings" on public.listing_images;
-create policy "Read images for visible listings"
+drop policy if exists "Read images of published listings" on public.listing_images;
+drop policy if exists "Owners and admins read listing images" on public.listing_images;
+
+create policy "Read images of published listings"
   on public.listing_images
   for select
+  to anon, authenticated
   using (
     exists (
       select 1 from public.listings l
       where l.id = listing_id
-        and (
-          l.status = 'published'
-          or l.owner_id = auth.uid()
-          or public.is_nexus_admin()
-        )
+        and l.status = 'published'
+    )
+  );
+
+create policy "Owners and admins read listing images"
+  on public.listing_images
+  for select
+  to authenticated
+  using (
+    exists (
+      select 1 from public.listings l
+      where l.id = listing_id
+        and (l.owner_id = auth.uid() or public.is_nexus_admin())
     )
   );
 
@@ -77,13 +92,39 @@ create policy "Owners delete listing images"
     )
   );
 
+-- Storage object policies. Path convention: {owner_id}/{listing_id}/{filename}
 drop policy if exists "Public read listing-images" on storage.objects;
-create policy "Public read listing-images"
+drop policy if exists "Read published listing-images" on storage.objects;
+drop policy if exists "Owners and admins read listing-images" on storage.objects;
+drop policy if exists "Owners upload listing-images" on storage.objects;
+drop policy if exists "Owners update listing-images" on storage.objects;
+drop policy if exists "Owners delete listing-images" on storage.objects;
+
+create policy "Read published listing-images"
   on storage.objects
   for select
-  using (bucket_id = 'listing-images');
+  to anon, authenticated
+  using (
+    bucket_id = 'listing-images'
+    and exists (
+      select 1 from public.listings l
+      where l.id::text = (storage.foldername(name))[2]
+        and l.status = 'published'
+    )
+  );
 
-drop policy if exists "Owners upload listing-images" on storage.objects;
+create policy "Owners and admins read listing-images"
+  on storage.objects
+  for select
+  to authenticated
+  using (
+    bucket_id = 'listing-images'
+    and (
+      (storage.foldername(name))[1] = auth.uid()::text
+      or public.is_nexus_admin()
+    )
+  );
+
 create policy "Owners upload listing-images"
   on storage.objects
   for insert
@@ -93,7 +134,6 @@ create policy "Owners upload listing-images"
     and (storage.foldername(name))[1] = auth.uid()::text
   );
 
-drop policy if exists "Owners update listing-images" on storage.objects;
 create policy "Owners update listing-images"
   on storage.objects
   for update
@@ -107,7 +147,6 @@ create policy "Owners update listing-images"
     and (storage.foldername(name))[1] = auth.uid()::text
   );
 
-drop policy if exists "Owners delete listing-images" on storage.objects;
 create policy "Owners delete listing-images"
   on storage.objects
   for delete
