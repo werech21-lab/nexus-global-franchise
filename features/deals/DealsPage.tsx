@@ -25,6 +25,7 @@ export default function DealsPage() {
   const [savingId, setSavingId] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [payingId, setPayingId] = useState<string | null>(null)
 
   const money = (amount: number | null | undefined, currency: string) =>
     formatMoney(amount, currency, locale, t.common.notAvailable)
@@ -114,6 +115,75 @@ export default function DealsPage() {
   useEffect(() => {
     void loadDeals()
   }, [loadDeals])
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('commission') === 'paid') {
+      setSuccess(t.deals.payReturned)
+    }
+  }, [t.deals.payReturned])
+
+  async function payCommission(deal: DealRow) {
+    if (payingId || !deal.payment || deal.payment.status !== 'pending' || !deal.isOwner) return
+
+    setPayingId(deal.id)
+    setError('')
+    setSuccess('')
+
+    try {
+      const response = await fetch('/api/payments/lemonsqueezy/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payment_id: deal.payment.id }),
+      })
+      const result = (await response.json().catch(() => null)) as {
+        ok?: boolean
+        error?: string
+        url?: string
+        amount_cents?: number
+        currency?: string
+        rate?: number | null
+        deal_currency?: string
+      } | null
+
+      if (!response.ok || !result?.ok || !result.url) {
+        const code = result?.error
+        if (code === 'currency_unsupported') {
+          throw new Error(
+            interpolate(t.deals.payCurrencyUnsupported, {
+              currency: result?.deal_currency ?? deal.currency,
+            })
+          )
+        }
+        if (code === 'forbidden') throw new Error(t.deals.payForbidden)
+        if (code === 'not_pending') throw new Error(t.deals.payNotPending)
+        if (code === 'unauthorized') throw new Error(t.deals.loginRequired)
+        if (code === 'not_configured' || code === 'provider_unavailable') {
+          throw new Error(t.deals.payUnavailable)
+        }
+        throw new Error(t.deals.payFailed)
+      }
+
+      const charge = money((result.amount_cents ?? 0) / 100, result.currency ?? 'USD')
+      let message = interpolate(t.deals.payConfirm, {
+        charge,
+        amount: money(deal.commission_amount, deal.currency),
+      })
+      if (result.rate) {
+        message += '\n' + interpolate(t.deals.payConfirmRate, {
+          from: deal.currency,
+          rate: String(result.rate),
+          to: result.currency ?? 'USD',
+        })
+      }
+      if (!window.confirm(message)) return
+
+      window.location.assign(result.url)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t.deals.payFailed)
+    } finally {
+      setPayingId(null)
+    }
+  }
 
   async function approveDeal(deal: DealRow, role: 'investor' | 'owner') {
     if (savingId || deal.status === 'completed') return
@@ -332,6 +402,23 @@ export default function DealsPage() {
                       </p>
                     ) : null}
                     <p className="mt-2 text-sm text-slate-400">{t.deals.paymentNote}</p>
+                    {deal.status === 'completed' && deal.payment?.status === 'pending' ? (
+                      deal.isOwner ? (
+                        <div className="mt-4 space-y-2">
+                          <button
+                            type="button"
+                            className="btn"
+                            disabled={payingId === deal.id}
+                            onClick={() => void payCommission(deal)}
+                          >
+                            {payingId === deal.id ? t.deals.payingCommission : t.deals.payCommission}
+                          </button>
+                          <p className="text-xs text-slate-400">{t.deals.payNote}</p>
+                        </div>
+                      ) : (
+                        <p className="mt-2 text-sm text-slate-400">{t.deals.payOwnerOnly}</p>
+                      )
+                    ) : null}
                   </div>
 
                   <Link href={`/dashboard/messages/${deal.conversation_id}`} className="text-amber-300">
