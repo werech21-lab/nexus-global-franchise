@@ -3,6 +3,10 @@
 -- id, conversation_id, amount, currency, status, commission_rate,
 -- commission_amount, investor_approved, owner_approved,
 -- investor_approved_at, owner_approved_at, created_at.
+--
+-- public.conversations is a live table that may not be in this repo.
+-- Policies and runtime checks that depend on it are skipped or raise a
+-- clear error if the table is missing, so this file still applies.
 
 create table if not exists public.deals (
   id uuid primary key default gen_random_uuid(),
@@ -34,17 +38,54 @@ alter table public.deals add column if not exists created_at timestamptz;
 alter table public.deals enable row level security;
 
 drop policy if exists "Deal participants can read deals" on public.deals;
-create policy "Deal participants can read deals"
-  on public.deals
-  for select
-  using (
-    public.is_nexus_admin()
-    or exists (
-      select 1 from public.conversations c
-      where c.id = conversation_id
-        and (c.owner_id = auth.uid() or c.investor_id = auth.uid())
-    )
-  );
+
+do $$
+begin
+  if to_regclass('public.conversations') is null then
+    raise notice
+      'Skipping deals SELECT policy: public.conversations does not exist yet. Apply this file again after that table is present, or add the policy manually.';
+  else
+    execute $pol$
+      create policy "Deal participants can read deals"
+        on public.deals
+        for select
+        to authenticated
+        using (
+          public.is_nexus_admin()
+          or exists (
+            select 1 from public.conversations c
+            where c.id = conversation_id
+              and (c.owner_id = auth.uid() or c.investor_id = auth.uid())
+          )
+        )
+    $pol$;
+  end if;
+end
+$$;
+
+-- At most one open (non-completed) deal per conversation.
+do $$
+begin
+  if exists (
+    select 1
+    from public.deals
+    where conversation_id is not null
+      and status is distinct from 'completed'
+    group by conversation_id
+    having count(*) > 1
+  ) then
+    raise notice
+      'Skipping deals_one_open_per_conversation_idx: duplicate open deals already exist.';
+  else
+    execute $idx$
+      create unique index if not exists deals_one_open_per_conversation_idx
+        on public.deals (conversation_id)
+        where conversation_id is not null
+          and status is distinct from 'completed'
+    $idx$;
+  end if;
+end
+$$;
 
 -- Inserts and approval updates go through SECURITY DEFINER RPCs, not direct writes.
 
@@ -56,7 +97,7 @@ create or replace function public.propose_deal(
 returns uuid
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
 declare
   v_owner uuid;
@@ -67,6 +108,10 @@ declare
 begin
   if auth.uid() is null then
     raise exception 'Not authenticated';
+  end if;
+
+  if to_regclass('public.conversations') is null then
+    raise exception 'public.conversations is not available';
   end if;
 
   if p_amount is null or p_amount <= 0 then
@@ -124,13 +169,14 @@ end;
 $$;
 
 revoke all on function public.propose_deal(uuid, numeric, text) from public;
+revoke all on function public.propose_deal(uuid, numeric, text) from anon;
 grant execute on function public.propose_deal(uuid, numeric, text) to authenticated;
 
 create or replace function public.approve_deal(p_deal_id uuid)
 returns public.deals
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
 declare
   v_deal public.deals;
@@ -139,6 +185,10 @@ declare
 begin
   if auth.uid() is null then
     raise exception 'Not authenticated';
+  end if;
+
+  if to_regclass('public.conversations') is null then
+    raise exception 'public.conversations is not available';
   end if;
 
   select * into v_deal from public.deals where id = p_deal_id for update;
@@ -192,4 +242,5 @@ end;
 $$;
 
 revoke all on function public.approve_deal(uuid) from public;
+revoke all on function public.approve_deal(uuid) from anon;
 grant execute on function public.approve_deal(uuid) to authenticated;

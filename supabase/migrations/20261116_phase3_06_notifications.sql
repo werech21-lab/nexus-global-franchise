@@ -2,6 +2,7 @@
 -- APPLY MANUALLY. Idempotent. A Database Webhook or the notify-email
 -- Edge Function should be pointed at this table after review.
 -- Email sending is off unless RESEND_API_KEY is configured (never commit keys).
+-- Triggers are created only when the live inquiries/messages tables exist.
 
 create table if not exists public.notification_outbox (
   id uuid primary key default gen_random_uuid(),
@@ -23,7 +24,7 @@ create or replace function public.enqueue_inquiry_notification()
 returns trigger
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
 declare
   v_owner uuid;
@@ -52,12 +53,16 @@ create or replace function public.enqueue_message_notification()
 returns trigger
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
 declare
   v_owner uuid;
   v_investor uuid;
 begin
+  if to_regclass('public.conversations') is null then
+    return new;
+  end if;
+
   select c.owner_id, c.investor_id into v_owner, v_investor
   from public.conversations c
   where c.id = new.conversation_id;
@@ -76,6 +81,13 @@ begin
 end;
 $$;
 
+revoke all on function public.enqueue_inquiry_notification() from public;
+revoke all on function public.enqueue_inquiry_notification() from anon;
+revoke all on function public.enqueue_inquiry_notification() from authenticated;
+revoke all on function public.enqueue_message_notification() from public;
+revoke all on function public.enqueue_message_notification() from anon;
+revoke all on function public.enqueue_message_notification() from authenticated;
+
 do $$
 begin
   if to_regclass('public.inquiries') is not null then
@@ -83,6 +95,8 @@ begin
     create trigger inquiries_enqueue_notification
       after insert on public.inquiries
       for each row execute function public.enqueue_inquiry_notification();
+  else
+    raise notice 'Skipping inquiries notification trigger: public.inquiries does not exist yet.';
   end if;
 
   if to_regclass('public.messages') is not null then
@@ -90,6 +104,8 @@ begin
     create trigger messages_enqueue_notification
       after insert on public.messages
       for each row execute function public.enqueue_message_notification();
+  else
+    raise notice 'Skipping messages notification trigger: public.messages does not exist yet.';
   end if;
 end
 $$;

@@ -1,5 +1,6 @@
 -- Phase 3: admin listing approve / reject RPC.
 -- APPLY MANUALLY. Idempotent. Requires public.is_nexus_admin().
+-- This file does not define or replace is_nexus_admin().
 
 create or replace function public.admin_review_listing(
   p_listing_id uuid,
@@ -9,7 +10,7 @@ create or replace function public.admin_review_listing(
 returns public.listings
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
 declare
   v_listing public.listings;
@@ -57,4 +58,5 @@ end;
 $$;
 
 revoke all on function public.admin_review_listing(uuid, text, text) from public;
+revoke all on function public.admin_review_listing(uuid, text, text) from anon;
 grant execute on function public.admin_review_listing(uuid, text, text) to authenticated;
