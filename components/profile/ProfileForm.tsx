@@ -24,7 +24,7 @@ export default function ProfileForm({ userId }: { userId: string }) {
       }
       const { data, error: loadError } = await supabase
         .from('profiles')
-        .select('display_name,bio')
+        .select('display_name,bio,avatar')
         .eq('id', userId)
         .maybeSingle()
       if (!active) return
@@ -51,7 +51,6 @@ export default function ProfileForm({ userId }: { userId: string }) {
       id: userId,
       display_name: displayName.trim() || null,
       bio: bio.trim() || null,
-      updated_at: new Date().toISOString(),
     }
     const { error: saveError } = await supabase.from('profiles').upsert(payload, { onConflict: 'id' })
     if (saveError) setError(saveError.message || t.profile.saveFailed)

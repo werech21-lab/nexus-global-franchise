@@ -36,6 +36,14 @@ export default async function PublicProfilePage({ params }: Props) {
 
   return (
     <PageShell title={name} intro={profile?.bio || t.profile.meta}>
+      {profile?.avatar && (profile.avatar.startsWith('http://') || profile.avatar.startsWith('https://')) ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={profile.avatar}
+          alt=""
+          className="h-24 w-24 rounded-full object-cover"
+        />
+      ) : null}
       <p className="text-sm text-slate-400">{t.profile.title}</p>
       <h2 className="text-2xl font-bold">{t.profile.listings}</h2>
       {listings.length === 0 ? (
