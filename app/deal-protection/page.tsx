@@ -4,7 +4,9 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
-import { useT } from '@/lib/i18n/provider'
+import { useLocale, useT } from '@/lib/i18n/provider'
+import { interpolate } from '@/lib/i18n'
+import { formatDate } from '@/lib/format'
 
 type Agreement = {
   id: string
@@ -22,6 +24,11 @@ export default function DealProtectionPage() {
     useState<Agreement | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const locale = useLocale()
+  const [userId, setUserId] = useState<string | null>(null)
+  const [acceptedAt, setAcceptedAt] = useState<string | null>(null)
+  const [accepting, setAccepting] = useState(false)
+  const [acceptMessage, setAcceptMessage] = useState('')
 
   useEffect(() => {
     let active = true
@@ -43,10 +50,26 @@ export default function DealProtectionPage() {
 
       if (!active) return
 
+      const { data: authData } = await supabase.auth.getUser()
+      const currentUserId = authData.user?.id || null
+      setUserId(currentUserId)
+
       if (queryError) {
         setError(queryError.message)
       } else {
         setAgreement(data as Agreement | null)
+      }
+
+      if (currentUserId && data) {
+        const agreementRow = data as Agreement
+        const { data: acceptance } = await supabase
+          .from('brokerage_agreement_acceptances')
+          .select('accepted_at')
+          .eq('user_id', currentUserId)
+          .eq('agreement_id', agreementRow.id)
+          .eq('agreement_version', agreementRow.version)
+          .maybeSingle()
+        setAcceptedAt(acceptance?.accepted_at || null)
       }
 
       setLoading(false)
@@ -153,13 +176,55 @@ export default function DealProtectionPage() {
               </p>
             </div>
 
-            <button
-              type="button"
-              disabled
-              className="cursor-not-allowed rounded-lg bg-slate-700 px-6 py-3 font-semibold text-slate-400"
-            >
-              {t.dealProtection.acceptanceUnavailable}
-            </button>
+            <div className="space-y-3 rounded-xl border border-amber-500/30 bg-slate-950/40 p-4">
+              <p className="font-semibold text-amber-300">
+                {t.dealProtection.acceptTitle}
+              </p>
+              <p className="text-sm text-slate-300">
+                {t.dealProtection.acceptBody}
+              </p>
+              {!userId ? (
+                <Link href="/login?next=/deal-protection" className="btn">
+                  {t.dealProtection.signInToAccept}
+                </Link>
+              ) : acceptedAt ? (
+                <p role="status" className="text-sm text-emerald-300">
+                  {interpolate(t.dealProtection.acceptedAt, {
+                    version: agreement.version,
+                    date: formatDate(acceptedAt, locale),
+                  })}
+                </p>
+              ) : (
+                <button
+                  type="button"
+                  disabled={accepting}
+                  className="btn"
+                  onClick={async () => {
+                    if (!supabase || accepting) return
+                    setAccepting(true)
+                    setAcceptMessage('')
+                    const { error: acceptError } = await supabase
+                      .from('brokerage_agreement_acceptances')
+                      .insert({
+                        user_id: userId,
+                        agreement_id: agreement.id,
+                        agreement_version: agreement.version,
+                      })
+                    if (acceptError) {
+                      setAcceptMessage(acceptError.message || t.dealProtection.acceptFailed)
+                    } else {
+                      setAcceptedAt(new Date().toISOString())
+                    }
+                    setAccepting(false)
+                  }}
+                >
+                  {accepting ? t.dealProtection.accepting : t.dealProtection.accept}
+                </button>
+              )}
+              {acceptMessage ? (
+                <p className="text-sm text-rose-300">{acceptMessage}</p>
+              ) : null}
+            </div>
           </>
         ) : (
           <p className="text-slate-300">
