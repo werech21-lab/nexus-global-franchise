@@ -4,9 +4,18 @@ import { NextResponse, type NextRequest } from 'next/server'
 const PROTECTED_PREFIXES = ['/dashboard', '/admin', '/account']
 
 export function isProtectedPath(pathname: string): boolean {
-  return PROTECTED_PREFIXES.some(
-    prefix => pathname === prefix || pathname.startsWith(`${prefix}/`)
-  )
+  if (
+    PROTECTED_PREFIXES.some(
+      prefix => pathname === prefix || pathname.startsWith(`${prefix}/`)
+    )
+  ) {
+    return true
+  }
+
+  if (pathname === '/listings/new') return true
+  if (/^\/listings\/[^/]+\/edit$/.test(pathname)) return true
+
+  return false
 }
 
 export async function updateSession(request: NextRequest) {

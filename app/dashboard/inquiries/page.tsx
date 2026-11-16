@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { loadUserLabels } from '@/lib/users'
 
 type Inquiry = {
   id: string
@@ -38,6 +39,9 @@ export default function InvestorInquiries() {
   const [updatingId, setUpdatingId] = useState<string | null>(
     null
   )
+  const [investorLabels, setInvestorLabels] = useState<
+    Record<string, string>
+  >({})
 
   const load = useCallback(async () => {
     if (!supabase) {
@@ -100,6 +104,12 @@ export default function InvestorInquiries() {
 
     const loadedInquiries = (data || []) as Inquiry[]
     setInquiries(loadedInquiries)
+
+    const labels = await loadUserLabels(
+      client,
+      loadedInquiries.map(item => item.investor_id)
+    )
+    setInvestorLabels(labels)
 
     if (loadedInquiries.length > 0) {
       const { data: chats, error: chatsError } =
@@ -324,8 +334,9 @@ export default function InvestorInquiries() {
                       </p>
 
                       <p className="mt-1 text-sm text-slate-400">
-                        Investor ID:{' '}
-                        {inquiry.investor_id}
+                        Investor:{' '}
+                        {investorLabels[inquiry.investor_id] ||
+                          inquiry.investor_id}
                       </p>
                     </div>
 

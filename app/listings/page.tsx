@@ -2,8 +2,8 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import ListingCard from '@/app/components/ListingCard'
 
 type Listing = {
   id: string
@@ -136,33 +136,7 @@ export default function Listings() {
 
           <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
             {filtered.map(x => (
-              <Link
-                href={`/listings/${x.id}`}
-                key={x.id}
-                className="card block transition hover:border-amber-400 hover:-translate-y-1"
-              >
-                <div className="mb-4 flex flex-wrap gap-2">
-                  <span className="rounded-full bg-amber-500/15 px-3 py-1 text-xs text-amber-300">
-                    {(x.opportunity_type || 'Opportunity').replaceAll('_', ' ')}
-                  </span>
-
-                  <span className="rounded-full bg-slate-700 px-3 py-1 text-xs">
-                    {x.country || 'Worldwide'}
-                  </span>
-                </div>
-
-                <h2 className="text-xl font-bold text-white">
-                  {x.title}
-                </h2>
-
-                <p className="mt-3 text-sm text-slate-300 line-clamp-3">
-                  {x.description || 'Explore this business opportunity.'}
-                </p>
-
-                <div className="mt-6 border-t border-slate-700 pt-4 font-semibold text-amber-300">
-                  View Opportunity →
-                </div>
-              </Link>
+              <ListingCard key={x.id} listing={x} />
             ))}
           </div>
         </>
