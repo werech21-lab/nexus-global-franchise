@@ -6,6 +6,8 @@ import type { FormEvent, KeyboardEvent } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import DealProposal from '@/features/deals/DealProposal'
+import { notifyEmailEvent } from '@/lib/notify'
 import { useLocale, useT } from '@/lib/i18n/provider'
 import { formatDateTime } from '@/lib/format'
 import type { RealtimeChannel } from '@supabase/supabase-js'
@@ -366,6 +368,7 @@ export default function ConversationPage() {
 
       if (data) {
         const savedMessage = data as Message
+        void notifyEmailEvent('new_message', { message_id: savedMessage.id })
 
         addMessages([savedMessage])
 
@@ -441,6 +444,14 @@ export default function ConversationPage() {
               {t.chat.keepOnNexus}{' '}
               {isOwner ? t.chat.youAreOwner : t.chat.youAreInvestor}
             </div>
+
+            {userId ? (
+              <DealProposal
+                conversationId={conversationId}
+                isOwner={Boolean(isOwner)}
+                userId={userId}
+              />
+            ) : null}
 
             <div className="h-[420px] space-y-4 overflow-y-auto bg-[#09182D] p-5">
               {messages.length === 0 && (
