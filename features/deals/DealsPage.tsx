@@ -248,7 +248,7 @@ export default function DealsPage() {
                       </p>
                     </div>
                     <Badge tone={deal.status === 'completed' ? 'success' : 'gold'}>
-                      {deal.status.replace(/_/g, ' ').toUpperCase()}
+                      {(t.deals.statusLabels as Record<string, string>)[deal.status] || deal.status}
                     </Badge>
                   </div>
 

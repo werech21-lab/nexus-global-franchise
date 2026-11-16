@@ -189,7 +189,7 @@ export default function CommissionsPage() {
                           {t.commissions.commissionAmount}: {money(deal.commission_amount, currency)}
                         </p>
                         <p>
-                          <strong>{t.commissions.dealStatus}:</strong> {deal.status}
+                          <strong>{t.commissions.dealStatus}:</strong> {(t.deals.statusLabels as Record<string, string>)[deal.status] || deal.status}
                         </p>
                         <p>
                           <strong>{t.commissions.conversationId}:</strong>{' '}
