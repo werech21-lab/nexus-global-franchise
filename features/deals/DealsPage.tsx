@@ -158,19 +158,24 @@ export default function DealsPage() {
         throw new Error(t.deals.unauthorized)
       }
 
-      const column = role === 'investor' ? 'investor_approved' : 'owner_approved'
+      const { error: rpcError } = await supabase.rpc('approve_deal', {
+        p_deal_id: deal.id,
+      })
 
-      const { data, error: updateError } = await supabase
-        .from('deals')
-        .update({ [column]: true })
-        .eq('id', deal.id)
-        .eq('conversation_id', deal.conversation_id)
-        .eq(column, false)
-        .select('id')
-        .maybeSingle()
+      if (rpcError) {
+        const column = role === 'investor' ? 'investor_approved' : 'owner_approved'
+        const { data, error: updateError } = await supabase
+          .from('deals')
+          .update({ [column]: true })
+          .eq('id', deal.id)
+          .eq('conversation_id', deal.conversation_id)
+          .eq(column, false)
+          .select('id')
+          .maybeSingle()
 
-      if (updateError) throw updateError
-      if (!data) throw new Error(t.deals.notSaved)
+        if (updateError) throw updateError
+        if (!data) throw new Error(rpcError.message || t.deals.notSaved)
+      }
 
       await loadDeals()
       setSuccess(t.deals.approvedOk)
