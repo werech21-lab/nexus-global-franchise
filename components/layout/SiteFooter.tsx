@@ -18,7 +18,7 @@ export default function SiteFooter() {
         <div className="max-w-md space-y-3">
           <p className="text-lg font-bold">🌐 {t.footer.copyright}</p>
           <p className="text-sm text-slate-400">{t.footer.tagline}</p>
-          <p className="text-xs text-slate-500">{t.footer.placeholderNote}</p>
+          <p className="text-xs text-slate-400">{t.footer.placeholderNote}</p>
         </div>
 
         <nav aria-label="Footer" className="flex flex-wrap gap-x-6 gap-y-2">
