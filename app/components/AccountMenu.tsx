@@ -573,6 +573,15 @@ export default function AccountMenu() {
               My Dashboard
             </Link>
 
+            <Link
+              href="/account"
+              onClick={() => setMenuOpen(false)}
+              className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm transition hover:bg-slate-800"
+            >
+              <span>🔑</span>
+              Change Password
+            </Link>
+
             <button
               type="button"
               onClick={handleSignOut}
