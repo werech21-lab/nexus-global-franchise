@@ -138,6 +138,10 @@ export default function Dashboard() {
         </div>
 
         <div className="flex flex-wrap gap-3">
+          <Link href="/account" className="btn">
+            Change Password
+          </Link>
+
           <Link href="/dashboard/inquiries" className="btn">
             Investor Inquiries
           </Link>

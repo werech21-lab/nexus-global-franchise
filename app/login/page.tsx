@@ -1,19 +1,27 @@
-
 'use client'
 
 import { useState, type FormEvent } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import { Suspense } from 'react'
 import { supabase } from '../../lib/supabase'
+import { passwordsMatch, validatePassword } from '@/lib/password'
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const nextPath = searchParams.get('next') || '/dashboard'
   const [mode, setMode] = useState<'login' | 'signup'>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+
+  function safeNext(path: string) {
+    return path.startsWith('/') && !path.startsWith('//') ? path : '/dashboard'
+  }
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -27,6 +35,13 @@ export default function LoginPage() {
       }
 
       if (mode === 'signup') {
+        const passwordError =
+          validatePassword(password) || passwordsMatch(password, confirmPassword)
+
+        if (passwordError) {
+          throw new Error(passwordError)
+        }
+
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
@@ -38,7 +53,7 @@ export default function LoginPage() {
         if (error) throw error
 
         if (data.session) {
-          router.push('/dashboard')
+          router.push(safeNext(nextPath))
           router.refresh()
           return
         }
@@ -52,7 +67,7 @@ export default function LoginPage() {
 
         if (error) throw error
 
-        router.push('/dashboard')
+        router.push(safeNext(nextPath))
         router.refresh()
       }
     } catch (err) {
@@ -128,13 +143,43 @@ export default function LoginPage() {
               id="password"
               type="password"
               required
-              minLength={6}
+              minLength={mode === 'signup' ? 10 : 1}
               autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
-              placeholder="Enter your password"
+              placeholder={
+                mode === 'signup'
+                  ? 'At least 10 characters, letters and numbers'
+                  : 'Enter your password'
+              }
               value={password}
               onChange={e => setPassword(e.target.value)}
             />
           </div>
+
+          {mode === 'signup' && (
+            <div>
+              <label htmlFor="confirmPassword" className="mb-2 block">
+                Confirm password
+              </label>
+              <input
+                id="confirmPassword"
+                type="password"
+                required
+                minLength={10}
+                autoComplete="new-password"
+                placeholder="Re-enter your password"
+                value={confirmPassword}
+                onChange={e => setConfirmPassword(e.target.value)}
+              />
+            </div>
+          )}
+
+          {mode === 'login' && (
+            <div className="text-right">
+              <Link href="/forgot-password" className="text-sm">
+                Forgot password?
+              </Link>
+            </div>
+          )}
 
           {error && (
             <p role="alert" className="rounded-lg bg-red-950 p-3 text-red-300">
@@ -164,5 +209,13 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<p className="py-12">Loading...</p>}>
+      <LoginForm />
+    </Suspense>
   )
 }
