@@ -85,6 +85,30 @@ export default function AccountDropdown({
               {t.accountMenu.myDashboard}
             </Link>
             <Link
+              href="/dashboard/my-inquiries"
+              onClick={onClose}
+              className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm transition hover:bg-slate-800"
+            >
+              <span>✉️</span>
+              {t.nav.myInquiries}
+            </Link>
+            <Link
+              href="/dashboard/saved"
+              onClick={onClose}
+              className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm transition hover:bg-slate-800"
+            >
+              <span>♡</span>
+              {t.nav.saved}
+            </Link>
+            <Link
+              href="/dashboard/messages"
+              onClick={onClose}
+              className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm transition hover:bg-slate-800"
+            >
+              <span>💬</span>
+              {t.dashboard.messages}
+            </Link>
+            <Link
               href="/account"
               onClick={onClose}
               className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm transition hover:bg-slate-800"

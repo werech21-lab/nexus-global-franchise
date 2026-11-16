@@ -94,6 +94,7 @@ export default function AdminDashboard() {
   const links = [
     { title: t.admin.commissionsTitle, body: t.admin.commissionsBody, href: '/admin/commissions' },
     { title: t.admin.dealsTitle, body: t.admin.dealsBody, href: '/dashboard/deals' },
+    { title: t.admin.listingsTitle, body: t.admin.listingsBody, href: '/admin/listings' },
     { title: t.admin.opportunitiesTitle, body: t.admin.opportunitiesBody, href: '/dashboard' },
     { title: t.admin.usersTitle, body: t.admin.usersBody, href: '/admin/users' },
   ]

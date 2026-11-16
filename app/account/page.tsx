@@ -5,13 +5,17 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { getPasswordIssue, getPasswordMismatch, passwordIssueMessage } from '@/lib/password'
+import { Suspense } from 'react'
 import { interpolate } from '@/lib/i18n'
 import { useT } from '@/lib/i18n/provider'
+import ProfileForm from '@/components/profile/ProfileForm'
+import MfaSettings from '@/components/mfa/MfaSettings'
 
 export default function AccountPage() {
   const t = useT()
   const router = useRouter()
   const [email, setEmail] = useState('')
+  const [userId, setUserId] = useState('')
   const [loadingUser, setLoadingUser] = useState(true)
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -36,6 +40,7 @@ export default function AccountPage() {
       }
 
       setEmail(data.user.email || '')
+      setUserId(data.user.id)
       setLoadingUser(false)
     }
 
@@ -92,7 +97,11 @@ export default function AccountPage() {
   }
 
   return (
-    <div className="mx-auto max-w-md py-12">
+    <div className="mx-auto max-w-2xl space-y-8 py-12">
+      {userId ? <ProfileForm userId={userId} /> : null}
+      <Suspense fallback={null}>
+        <MfaSettings />
+      </Suspense>
       <div className="card">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-white">{t.auth.accountTitle}</h1>

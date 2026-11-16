@@ -57,5 +57,25 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(redirectUrl)
   }
 
+  const pathname = request.nextUrl.pathname
+  if (user && (pathname === '/admin' || pathname.startsWith('/admin/'))) {
+    const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
+    if (aal?.nextLevel === 'aal2' && aal.currentLevel !== 'aal2') {
+      const redirectUrl = request.nextUrl.clone()
+      redirectUrl.pathname = '/account'
+      redirectUrl.search = ''
+      redirectUrl.searchParams.set('mfa', 'required')
+      redirectUrl.searchParams.set(
+        'next',
+        pathname + (request.nextUrl.search || '')
+      )
+      const redirected = NextResponse.redirect(redirectUrl)
+      supabaseResponse.cookies.getAll().forEach(cookie => {
+        redirected.cookies.set(cookie.name, cookie.value)
+      })
+      return redirected
+    }
+  }
+
   return supabaseResponse
 }

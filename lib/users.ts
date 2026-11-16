@@ -55,23 +55,19 @@ export async function loadUserLabels(
   try {
     const { data, error } = await client
       .from('profiles')
-      .select('id, full_name, name, display_name, email')
+      .select('id, display_name')
       .in('id', unique)
 
     if (error || !data) return resolved
 
     for (const row of data as Array<{
       id: string
-      full_name?: string | null
-      name?: string | null
       display_name?: string | null
-      email?: string | null
     }>) {
       resolved[row.id] = formatUserLabel(
         {
           id: row.id,
-          name: row.full_name || row.name || row.display_name,
-          email: row.email,
+          name: row.display_name,
         },
         labels
       )

@@ -1,4 +1,3 @@
-
 'use client'
 
 import { useEffect, useState } from 'react'
@@ -7,7 +6,8 @@ import { useRouter } from 'next/navigation'
 import ListingForm from '@/components/listings/ListingForm'
 import { supabase } from '@/lib/supabase'
 import { useT } from '@/lib/i18n/provider'
-import type { ListingFormValues } from '@/lib/listings'
+import { listingWritePayload, type ListingFormValues } from '@/lib/listings'
+import { syncListingImages } from '@/lib/listing-images'
 
 export default function NewListingPage() {
   const router = useRouter()
@@ -61,22 +61,45 @@ export default function NewListingPage() {
       return
     }
 
-    const { error } = await supabase.from('listings').insert({
-      owner_id: user.id,
-      title: values.title,
-      description: values.description,
-      country: values.country,
-      opportunity_type: values.opportunity_type,
-      status: 'draft',
-    })
+    const status = values.status === 'pending_review' ? 'pending_review' : 'draft'
 
-    setSubmitting(false)
+    const { data, error } = await supabase
+      .from('listings')
+      .insert({
+        owner_id: user.id,
+        ...listingWritePayload(values, status === 'pending_review' ? 'draft' : 'draft'),
+        status: 'draft',
+      })
+      .select('id')
+      .single()
 
-    if (error) {
-      setMessage(error.message)
+    if (error || !data) {
+      setSubmitting(false)
+      setMessage(error?.message || t.listingForm.saveFailed)
       return
     }
 
+    const images = await syncListingImages(supabase, data.id, user.id, values)
+    if (images.error) {
+      setSubmitting(false)
+      setMessage(images.error)
+      return
+    }
+
+    if (status === 'pending_review') {
+      const { error: reviewError } = await supabase
+        .from('listings')
+        .update({ status: 'pending_review' })
+        .eq('id', data.id)
+        .eq('owner_id', user.id)
+      if (reviewError) {
+        setSubmitting(false)
+        setMessage(reviewError.message)
+        return
+      }
+    }
+
+    setSubmitting(false)
     router.push('/dashboard')
     router.refresh()
   }

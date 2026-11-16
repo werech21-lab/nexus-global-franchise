@@ -1,4 +1,3 @@
-
 'use client'
 
 import { useEffect, useState } from 'react'
@@ -8,10 +7,18 @@ import ListingForm from '@/components/listings/ListingForm'
 import { supabase } from '@/lib/supabase'
 import { useT } from '@/lib/i18n/provider'
 import {
+  isIndustry,
+  isListingStatus,
   isOpportunityType,
+  listingWritePayload,
+  numberToInput,
   type ListingFormValues,
-  type ListingStatus,
+  type ListingImage,
 } from '@/lib/listings'
+import { signListingImagePaths, syncListingImages } from '@/lib/listing-images'
+
+const EDIT_COLUMNS =
+  'id,title,description,country,city,opportunity_type,industry,investment_min,investment_max,franchise_fee,royalty_percent,years_in_business,currency,status,owner_id,rejection_reason,listing_images(id,path,sort_order,is_cover)'
 
 export default function EditListingPage() {
   const params = useParams()
@@ -45,7 +52,7 @@ export default function EditListingPage() {
 
       const { data, error: fetchError } = await supabase
         .from('listings')
-        .select('id,title,description,country,opportunity_type,status,owner_id')
+        .select(EDIT_COLUMNS)
         .eq('id', id)
         .maybeSingle()
 
@@ -58,15 +65,45 @@ export default function EditListingPage() {
       } else if (data.owner_id !== authData.user.id) {
         setError(t.listingForm.notOwner)
       } else {
+        const rawImages = ((data.listing_images || []) as ListingImage[]).sort(
+          (a, b) => a.sort_order - b.sort_order
+        )
+        const signed = await signListingImagePaths(
+          supabase,
+          rawImages.map(image => image.path)
+        )
+        const images = rawImages.map(image => ({
+          ...image,
+          signed_url: signed[image.path] || null,
+        }))
+        const coverIndex = Math.max(
+          0,
+          images.findIndex(image => image.is_cover)
+        )
         setInitialValues({
           title: data.title || '',
           description: data.description || '',
-          country: data.country || '',
+          country: data.country || 'Kuwait',
+          city: data.city || '',
           opportunity_type: isOpportunityType(data.opportunity_type)
             ? data.opportunity_type
             : 'franchise',
-          status: data.status === 'published' ? 'published' : 'draft',
+          industry: isIndustry(data.industry) ? data.industry : '',
+          investment_min: numberToInput(data.investment_min),
+          investment_max: numberToInput(data.investment_max),
+          franchise_fee: numberToInput(data.franchise_fee),
+          royalty_percent: numberToInput(data.royalty_percent),
+          years_in_business: numberToInput(data.years_in_business),
+          currency: data.currency || 'KWD',
+          status: isListingStatus(data.status) ? data.status : 'draft',
+          imageFiles: [],
+          coverIndex: coverIndex === -1 ? 0 : coverIndex,
+          existingImages: images,
+          removedImageIds: [],
         })
+        if (data.status === 'rejected' && data.rejection_reason) {
+          setMessage(`${t.listingForm.rejectionReason}: ${data.rejection_reason}`)
+        }
       }
 
       setLoading(false)
@@ -82,7 +119,7 @@ export default function EditListingPage() {
     return () => {
       active = false
     }
-  }, [id, router])
+  }, [id, router, t.listingForm.configure, t.listingForm.notFound, t.listingForm.notOwner, t.listingForm.rejectionReason])
 
   async function handleSubmit(values: ListingFormValues) {
     if (!supabase) {
@@ -93,19 +130,14 @@ export default function EditListingPage() {
     setSubmitting(true)
     setMessage('')
 
-    const payload: {
-      title: string
-      description: string
-      country: string
-      opportunity_type: string
-      status: ListingStatus
-    } = {
-      title: values.title,
-      description: values.description,
-      country: values.country,
-      opportunity_type: values.opportunity_type,
-      status: values.status,
+    const { data: authData } = await supabase.auth.getUser()
+    if (!authData.user) {
+      router.replace(`/login?next=/listings/${id}/edit`)
+      return
     }
+
+    const nextStatus = values.status === 'pending_review' ? 'pending_review' : 'draft'
+    const payload = listingWritePayload(values, nextStatus)
 
     const { data, error: updateError } = await supabase
       .from('listings')
@@ -114,10 +146,17 @@ export default function EditListingPage() {
       .select('id')
       .single()
 
+    if (updateError || !data) {
+      setSubmitting(false)
+      setMessage(updateError?.message || t.listingForm.saveFailed)
+      return
+    }
+
+    const images = await syncListingImages(supabase, id, authData.user.id, values)
     setSubmitting(false)
 
-    if (updateError || !data) {
-      setMessage(updateError?.message || t.listingForm.saveFailed)
+    if (images.error) {
+      setMessage(images.error)
       return
     }
 
@@ -132,9 +171,7 @@ export default function EditListingPage() {
   if (error || !initialValues) {
     return (
       <section className="space-y-5 py-12">
-        <h1 className="text-2xl font-bold">
-          {error || t.listingForm.notFound}
-        </h1>
+        <h1 className="text-2xl font-bold">{error || t.listingForm.notFound}</h1>
         <Link href="/dashboard" className="btn">
           {t.common.backToDashboard}
         </Link>
