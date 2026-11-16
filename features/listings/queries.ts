@@ -1,28 +1,104 @@
 import { createClient } from '@/lib/supabase/server'
+import {
+  LISTING_PAGE_SIZE,
+  parseSort,
+  sanitizeSearchTerm,
+  type ListingSearchParams,
+  type ListingSort,
+} from '@/lib/listings'
 import type { Listing, ListingSummary } from '@/types/listing'
 
 const SUMMARY_COLUMNS =
-  'id,title,description,country,opportunity_type,created_at'
+  'id,title,description,country,city,opportunity_type,industry,investment_min,investment_max,franchise_fee,royalty_percent,years_in_business,currency,created_at,listing_images(id,path,sort_order,is_cover)'
 
 const DETAIL_COLUMNS =
-  'id,title,description,country,opportunity_type,created_at,owner_id,status'
+  'id,title,description,country,city,opportunity_type,industry,investment_min,investment_max,franchise_fee,royalty_percent,years_in_business,currency,created_at,owner_id,status,listing_images(id,path,sort_order,is_cover)'
 
-export async function getPublishedListings(): Promise<ListingSummary[]> {
+export type ListingSearchResult = {
+  listings: ListingSummary[]
+  total: number
+  page: number
+  pageSize: number
+  pageCount: number
+  sort: ListingSort
+}
+
+function applySort(query: { order: Function }, sort: ListingSort) {
+  if (sort === 'investment_asc') {
+    return query.order('investment_min', { ascending: true, nullsFirst: false })
+  }
+  if (sort === 'investment_desc') {
+    return query.order('investment_min', { ascending: false, nullsFirst: false })
+  }
+  return query.order('created_at', { ascending: false })
+}
+
+export async function searchPublishedListings(
+  raw: ListingSearchParams
+): Promise<ListingSearchResult> {
+  const sort = parseSort(raw.sort)
+  const page = Math.max(1, Number(raw.page) || 1)
+  const pageSize = LISTING_PAGE_SIZE
+  const from = (page - 1) * pageSize
+  const to = from + pageSize - 1
+  const empty: ListingSearchResult = {
+    listings: [],
+    total: 0,
+    page,
+    pageSize,
+    pageCount: 0,
+    sort,
+  }
+
   try {
     const supabase = await createClient()
-    if (!supabase) return []
+    if (!supabase) return empty
 
-    const { data, error } = await supabase
+    let query = supabase
       .from('listings')
-      .select(SUMMARY_COLUMNS)
+      .select(SUMMARY_COLUMNS, { count: 'exact' })
       .eq('status', 'published')
-      .order('created_at', { ascending: false })
 
-    if (error) return []
-    return (data || []) as ListingSummary[]
+    const term = sanitizeSearchTerm(raw.q)
+    if (term) {
+      query = query.or(
+        `title.ilike.%${term}%,description.ilike.%${term}%,city.ilike.%${term}%`
+      )
+    }
+    if (raw.country) query = query.eq('country', raw.country)
+    if (raw.industry) query = query.eq('industry', raw.industry)
+
+    const min = raw.investMin ? Number(raw.investMin) : NaN
+    const max = raw.investMax ? Number(raw.investMax) : NaN
+    if (Number.isFinite(min)) {
+      query = query.gte('investment_max', min)
+    }
+    if (Number.isFinite(max)) {
+      query = query.lte('investment_min', max)
+    }
+
+    query = applySort(query, sort).range(from, to)
+
+    const { data, error, count } = await query
+    if (error) return empty
+
+    const total = count || 0
+    return {
+      listings: (data || []) as ListingSummary[],
+      total,
+      page,
+      pageSize,
+      pageCount: Math.max(1, Math.ceil(total / pageSize)) && total > 0 ? Math.ceil(total / pageSize) : 0,
+      sort,
+    }
   } catch {
-    return []
+    return empty
   }
+}
+
+export async function getPublishedListings(): Promise<ListingSummary[]> {
+  const result = await searchPublishedListings({ page: 1, sort: 'newest' })
+  return result.listings
 }
 
 export async function getLatestListings(
@@ -97,5 +173,67 @@ export async function hasExistingInquiry(
     return !error && Boolean(data)
   } catch {
     return false
+  }
+}
+
+export async function isListingSaved(
+  listingId: string,
+  userId: string
+): Promise<boolean> {
+  try {
+    const supabase = await createClient()
+    if (!supabase) return false
+    const { data, error } = await supabase
+      .from('saved_listings')
+      .select('listing_id')
+      .eq('listing_id', listingId)
+      .eq('user_id', userId)
+      .maybeSingle()
+    return !error && Boolean(data)
+  } catch {
+    return false
+  }
+}
+
+export type PublicProfile = {
+  id: string
+  display_name: string | null
+  bio: string | null
+}
+
+export async function getPublicProfile(
+  id: string
+): Promise<PublicProfile | null> {
+  try {
+    const supabase = await createClient()
+    if (!supabase) return null
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id,display_name,bio')
+      .eq('id', id)
+      .maybeSingle()
+    if (error || !data) return null
+    return data as PublicProfile
+  } catch {
+    return null
+  }
+}
+
+export async function getPublishedListingsByOwner(
+  ownerId: string
+): Promise<ListingSummary[]> {
+  try {
+    const supabase = await createClient()
+    if (!supabase) return []
+    const { data, error } = await supabase
+      .from('listings')
+      .select(SUMMARY_COLUMNS)
+      .eq('status', 'published')
+      .eq('owner_id', ownerId)
+      .order('created_at', { ascending: false })
+    if (error) return []
+    return (data || []) as ListingSummary[]
+  } catch {
+    return []
   }
 }
