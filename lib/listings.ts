@@ -65,12 +65,21 @@ export function industryLabel(
   return messages.industries[industry] || industry.replaceAll('_', ' ')
 }
 
-export function listingImageUrl(path: string | null | undefined): string | null {
-  if (!path) return null
-  if (path.startsWith('http://') || path.startsWith('https://')) return path
-  const base = process.env.NEXT_PUBLIC_SUPABASE_URL
-  if (!base) return null
-  return `${base.replace(/\/$/, '')}/storage/v1/object/public/listing-images/${path}`
+export function listingImageUrl(
+  pathOrImage: string | { path?: string; signed_url?: string | null } | null | undefined
+): string | null {
+  if (!pathOrImage) return null
+  if (typeof pathOrImage === 'string') {
+    if (pathOrImage.startsWith('http://') || pathOrImage.startsWith('https://')) {
+      return pathOrImage
+    }
+    return null
+  }
+  if (pathOrImage.signed_url) return pathOrImage.signed_url
+  if (pathOrImage.path && (pathOrImage.path.startsWith('http://') || pathOrImage.path.startsWith('https://'))) {
+    return pathOrImage.path
+  }
+  return null
 }
 
 export function coverPath(listing: ListingSummary): string | null {
@@ -78,6 +87,13 @@ export function coverPath(listing: ListingSummary): string | null {
   const images = listing.listing_images || []
   const cover = images.find(image => image.is_cover) || images[0]
   return cover?.path || null
+}
+
+export function coverImageSrc(listing: ListingSummary): string | null {
+  if (listing.cover_url) return listing.cover_url
+  const images = listing.listing_images || []
+  const cover = images.find(image => image.is_cover) || images[0]
+  return listingImageUrl(cover) || listingImageUrl(listing.cover_path)
 }
 
 export function parseSort(value: string | null | undefined): ListingSort {

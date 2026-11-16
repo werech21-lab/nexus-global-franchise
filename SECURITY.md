@@ -8,11 +8,12 @@ This document lists **manual steps in the Supabase dashboard**. They are not app
 
 ## English
 
-1. **Site URL and reset redirect**
+1. **Site URL and redirect URLs**
    - Open the Supabase project → **Authentication** → **URL Configuration**.
    - Set **Site URL** to `https://nexus-global-franchise.vercel.app`.
-   - Add this **Redirect URL**: `https://nexus-global-franchise.vercel.app/reset-password`.
-   - Keep any existing confirmation redirect such as `https://nexus-global-franchise.vercel.app/login` if email confirmation is enabled.
+   - Keep **both** of these **Redirect URLs** in the allow list (do not replace one with the other):
+     - `https://nexus-global-franchise.vercel.app/login`
+     - `https://nexus-global-franchise.vercel.app/reset-password`
 
 2. **Minimum password length**
    - In **Authentication** → **Providers** (Email) or password settings, raise the minimum password length to **at least 10 characters**.
@@ -22,7 +23,7 @@ This document lists **manual steps in the Supabase dashboard**. They are not app
    - Enable **HaveIBeenPwned / leaked password protection** so new and changed passwords that appeared in known breaches are rejected.
 
 4. **Multi-factor authentication (MFA)**
-   - Enable MFA (TOTP) in **Authentication** settings.
+   - TOTP **must be enabled** in **Authentication** settings. The in-app enrollment UI at `/account` will not work until TOTP is turned on.
    - Ask administrators to enroll MFA after it is enabled. Phase 3 adds an in-app TOTP enrollment/verify UI at `/account`. If an admin has MFA enrolled, `/admin` requires AAL2.
 
 5. **Auth rate limits and CAPTCHA**
@@ -54,11 +55,12 @@ The application now uses cookie-based sessions (`@supabase/ssr`) and middleware 
 
 ## العربية
 
-1. **رابط الموقع وإعادة التوجيه لإعادة التعيين**
+1. **رابط الموقع وروابط إعادة التوجيه**
    - افتح مشروع Supabase ← **Authentication** ← **URL Configuration**.
    - ضع **Site URL** على `https://nexus-global-franchise.vercel.app`.
-   - أضف **Redirect URL**: `https://nexus-global-franchise.vercel.app/reset-password`.
-   - أبقِ رابط تأكيد البريد مثل `https://nexus-global-franchise.vercel.app/login` إذا كان تأكيد البريد مفعّلاً.
+   - أبقِ **كلا** رابطَي إعادة التوجيه التاليين في القائمة (لا تستبدل أحدهما بالآخر):
+     - `https://nexus-global-franchise.vercel.app/login`
+     - `https://nexus-global-franchise.vercel.app/reset-password`
 
 2. **الحد الأدنى لطول كلمة المرور**
    - في إعدادات البريد/كلمة المرور ارفع الحد الأدنى إلى **10 أحرف على الأقل**.
@@ -68,7 +70,7 @@ The application now uses cookie-based sessions (`@supabase/ssr`) and middleware 
    - فعّل حماية كلمات المرور المسربة (HaveIBeenPwned) حتى تُرفض الكلمات التي ظهرت في تسريبات معروفة.
 
 4. **المصادقة الثنائية (MFA)**
-   - فعّل MFA (TOTP) من إعدادات المصادقة.
+   - يجب تفعيل TOTP من إعدادات المصادقة. واجهة التسجيل في `/account` لن تعمل حتى يتم تشغيل TOTP.
    - اطلب من المشرفين تفعيلها بعد تشغيلها. المرحلة 3 تضيف واجهة تسجيل/تحقق TOTP في `/account`. إذا كان المشرف قد فعّل MFA، تتطلب `/admin` مستوى AAL2.
 
 5. **حدود المعدل وCAPTCHA**

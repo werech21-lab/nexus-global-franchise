@@ -58,6 +58,7 @@ export type ListingImage = {
   path: string
   sort_order: number
   is_cover: boolean
+  signed_url?: string | null
 }
 
 export type ListingSummary = {
@@ -77,6 +78,7 @@ export type ListingSummary = {
   created_at?: string
   listing_images?: ListingImage[] | null
   cover_path?: string | null
+  cover_url?: string | null
 }
 
 export type Listing = ListingSummary & {
