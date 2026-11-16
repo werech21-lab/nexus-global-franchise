@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { useT } from '@/lib/i18n/provider'
 import Alert from '@/components/ui/Alert'
 import type { Listing } from '@/types/listing'
+import { notifyEmailEvent } from '@/lib/notify'
 
 export default function InquiryForm({
   listing,
@@ -58,12 +59,16 @@ export default function InquiryForm({
         return
       }
 
-      const { error: insertError } = await supabase.from('inquiries').insert({
-        listing_id: listing.id,
-        investor_id: investorId,
-        message,
-        status: 'pending',
-      })
+      const { data: inserted, error: insertError } = await supabase
+        .from('inquiries')
+        .insert({
+          listing_id: listing.id,
+          investor_id: investorId,
+          message,
+          status: 'pending',
+        })
+        .select('id')
+        .single()
 
       if (insertError) {
         if (insertError.code === '23505') {
@@ -83,6 +88,9 @@ export default function InquiryForm({
       setInquirySent(true)
       setInquiryMessage('')
       setInquiryResult(t.listings.sent)
+      if (inserted?.id) {
+        void notifyEmailEvent('new_inquiry', { inquiry_id: inserted.id })
+      }
     } catch (err) {
       console.error('Inquiry submission error:', err)
       setInquiryResult(
