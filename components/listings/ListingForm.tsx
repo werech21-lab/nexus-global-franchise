@@ -9,6 +9,7 @@ import {
   MAX_LISTING_IMAGES,
   OPPORTUNITY_TYPES,
   emptyListingFormValues,
+  countryLabel,
   listingImageUrl,
   toOptionalNumber,
   type Industry,
@@ -247,7 +248,7 @@ export default function ListingForm({
           >
             {COUNTRIES.map(value => (
               <option key={value} value={value}>
-                {value}
+                {countryLabel(value, t)}
               </option>
             ))}
           </select>

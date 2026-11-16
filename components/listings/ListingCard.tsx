@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useLocale, useT } from '@/lib/i18n/provider'
 import {
+  countryLabel,
   coverImageSrc,
   industryLabel,
   opportunityLabel,
@@ -15,7 +16,7 @@ export default function ListingCard({ listing }: { listing: ListingSummary }) {
   const locale = useLocale()
   const image = coverImageSrc(listing)
   const investment = investmentRangeLabel(listing, t, locale)
-  const place = [listing.city, listing.country || t.listings.worldwide]
+  const place = [listing.city, countryLabel(listing.country, t) || t.listings.worldwide]
     .filter(Boolean)
     .join(', ')
   const industry = industryLabel(listing.industry, t)
