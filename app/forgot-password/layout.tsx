@@ -1,12 +1,12 @@
 import type { ReactNode } from 'react'
 import type { Metadata } from 'next'
-import { pageMetadata } from '@/lib/seo'
+import { getDictionary } from '@/lib/i18n/dictionary'
+import { localizedMetadata } from '@/lib/seo'
 
-export const metadata: Metadata = pageMetadata(
-  'Forgot password',
-  'Request a password reset link for your account.',
-  '/forgot-password'
-)
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getDictionary()
+  return localizedMetadata(t.auth.forgotTitle, t.auth.forgotMeta, '/forgot-password')
+}
 
 export default function Layout({ children }: { children: ReactNode }) {
   return children

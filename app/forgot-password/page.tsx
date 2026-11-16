@@ -3,8 +3,10 @@
 import { useState, type FormEvent } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import { useT } from '@/lib/i18n/provider'
 
 export default function ForgotPasswordPage() {
+  const t = useT()
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
@@ -18,7 +20,7 @@ export default function ForgotPasswordPage() {
 
     try {
       if (!supabase) {
-        throw new Error('Supabase is not configured. Check Vercel environment variables.')
+        throw new Error(t.common.supabase)
       }
 
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
@@ -27,11 +29,9 @@ export default function ForgotPasswordPage() {
 
       if (error) throw error
 
-      setMessage(
-        'If an account exists for that email, we sent a password reset link. Please check your inbox.'
-      )
+      setMessage(t.auth.resetSent)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong.')
+      setError(err instanceof Error ? err.message : t.common.error)
     } finally {
       setLoading(false)
     }
@@ -42,23 +42,23 @@ export default function ForgotPasswordPage() {
       <div className="card">
         <div className="mb-8 text-center">
           <div className="mb-4 text-4xl">🔑</div>
-          <h1 className="text-3xl font-bold text-white">Forgot password</h1>
+          <h1 className="text-3xl font-bold text-white">{t.auth.forgotTitle}</h1>
           <p className="mt-3 text-slate-300">
-            Enter your email and we will send you a reset link.
+            {t.auth.forgotIntro}
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
             <label htmlFor="email" className="mb-2 block">
-              Email Address
+              {t.auth.email}
             </label>
             <input
               id="email"
               type="email"
               required
               autoComplete="email"
-              placeholder="you@example.com"
+              placeholder={t.auth.emailPlaceholder}
               value={email}
               onChange={e => setEmail(e.target.value)}
             />
@@ -77,13 +77,13 @@ export default function ForgotPasswordPage() {
           )}
 
           <button type="submit" disabled={loading} className="w-full">
-            {loading ? 'Please wait...' : 'Send reset link'}
+            {loading ? t.common.pleaseWait : t.auth.sendReset}
           </button>
         </form>
 
         <div className="mt-6 text-center">
           <Link href="/login" className="text-sm">
-            ← Back to Login
+            {t.auth.backToLogin}
           </Link>
         </div>
       </div>
