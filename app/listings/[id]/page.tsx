@@ -13,6 +13,7 @@ import {
 } from '@/features/listings/queries'
 import { getDictionary, getRequestLocale } from '@/lib/i18n/dictionary'
 import {
+  countryLabel,
   coverImageSrc,
   industryLabel,
   listingImageUrl,
@@ -60,7 +61,7 @@ export default async function ListingDetailsPage({ params }: Props) {
   const cover = coverImageSrc(listing)
   const gallery = images.length > 0 ? images : cover ? [{ id: 'cover', path: '', signed_url: cover, sort_order: 0, is_cover: true }] : []
   const investment = investmentRangeLabel(listing, t, locale)
-  const place = [listing.city, listing.country || t.listings.worldwide].filter(Boolean).join(', ')
+  const place = [listing.city, countryLabel(listing.country, t) || t.listings.worldwide].filter(Boolean).join(', ')
   const ownerName = profile?.display_name || t.user.unknown
 
   return (

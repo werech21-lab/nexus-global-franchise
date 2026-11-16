@@ -65,6 +65,14 @@ export function industryLabel(
   return messages.industries[industry] || industry.replaceAll('_', ' ')
 }
 
+export function countryLabel(
+  country: string | null | undefined,
+  messages: { countries: Record<string, string> }
+): string {
+  if (!country) return ''
+  return messages.countries[country] || country
+}
+
 export function listingImageUrl(
   pathOrImage: string | { path?: string; signed_url?: string | null } | null | undefined
 ): string | null {
