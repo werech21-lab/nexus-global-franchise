@@ -7,6 +7,7 @@ import {
   type ListingSort,
 } from '@/lib/listings'
 import type { Listing, ListingSummary } from '@/types/listing'
+import { signListingRecords } from '@/lib/listing-images'
 
 const SUMMARY_COLUMNS =
   'id,title,description,country,city,opportunity_type,industry,investment_min,investment_max,franchise_fee,royalty_percent,years_in_business,currency,created_at,listing_images(id,path,sort_order,is_cover)'
@@ -83,8 +84,12 @@ export async function searchPublishedListings(
     if (error) return empty
 
     const total = count || 0
+    const listings = await signListingRecords(
+      supabase,
+      (data || []) as ListingSummary[]
+    )
     return {
-      listings: (data || []) as ListingSummary[],
+      listings,
       total,
       page,
       pageSize,
@@ -116,7 +121,7 @@ export async function getLatestListings(
       .limit(limit)
 
     if (error) return []
-    return (data || []) as ListingSummary[]
+    return signListingRecords(supabase, (data || []) as ListingSummary[])
   } catch {
     return []
   }
@@ -137,7 +142,8 @@ export async function getPublishedListing(
       .maybeSingle()
 
     if (error || !data) return null
-    return data as Listing
+    const [listing] = await signListingRecords(supabase, [data as Listing])
+    return listing
   } catch {
     return null
   }
@@ -199,6 +205,7 @@ export type PublicProfile = {
   id: string
   display_name: string | null
   bio: string | null
+  avatar: string | null
 }
 
 export async function getPublicProfile(
@@ -209,7 +216,7 @@ export async function getPublicProfile(
     if (!supabase) return null
     const { data, error } = await supabase
       .from('profiles')
-      .select('id,display_name,bio')
+      .select('id,display_name,bio,avatar')
       .eq('id', id)
       .maybeSingle()
     if (error || !data) return null
@@ -232,7 +239,7 @@ export async function getPublishedListingsByOwner(
       .eq('owner_id', ownerId)
       .order('created_at', { ascending: false })
     if (error) return []
-    return (data || []) as ListingSummary[]
+    return signListingRecords(supabase, (data || []) as ListingSummary[])
   } catch {
     return []
   }

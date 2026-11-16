@@ -79,3 +79,73 @@ export function totalImageCount(values: Pick<ListingFormValues, 'imageFiles' | '
 }
 
 export { MAX_LISTING_IMAGES }
+
+export async function signListingImagePaths(
+  client: SupabaseClient,
+  paths: Array<string | null | undefined>,
+  expiresIn = 3600
+): Promise<Record<string, string>> {
+  const unique = [
+    ...new Set(
+      paths.filter((path): path is string => {
+        return Boolean(path) && !path!.startsWith('http://') && !path!.startsWith('https://')
+      })
+    ),
+  ]
+  if (unique.length === 0) return {}
+
+  const { data, error } = await client.storage
+    .from('listing-images')
+    .createSignedUrls(unique, expiresIn)
+
+  if (error || !data) return {}
+
+  const urls: Record<string, string> = {}
+  data.forEach((row, index) => {
+    const path = row.path || unique[index]
+    if (path && row.signedUrl) urls[path] = row.signedUrl
+  })
+  return urls
+}
+
+type WithImages = {
+  listing_images?: ListingImage[] | null
+  cover_path?: string | null
+  cover_url?: string | null
+}
+
+export function applySignedUrls<T extends WithImages>(
+  listing: T,
+  urls: Record<string, string>
+): T {
+  const images = (listing.listing_images || []).map(image => ({
+    ...image,
+    signed_url: urls[image.path] || image.signed_url || null,
+  }))
+  const cover = images.find(image => image.is_cover) || images[0]
+  const coverUrl =
+    listing.cover_url ||
+    cover?.signed_url ||
+    (cover ? urls[cover.path] : undefined) ||
+    (listing.cover_path ? urls[listing.cover_path] : undefined) ||
+    null
+
+  return {
+    ...listing,
+    listing_images: images,
+    cover_url: coverUrl,
+  }
+}
+
+export async function signListingRecords<T extends WithImages>(
+  client: SupabaseClient,
+  listings: T[],
+  expiresIn = 3600
+): Promise<T[]> {
+  const paths = listings.flatMap(listing => [
+    listing.cover_path,
+    ...(listing.listing_images || []).map(image => image.path),
+  ])
+  const urls = await signListingImagePaths(client, paths, expiresIn)
+  return listings.map(listing => applySignedUrls(listing, urls))
+}

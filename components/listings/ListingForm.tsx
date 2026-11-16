@@ -63,7 +63,7 @@ export default function ListingForm({
     [existingImages, removedImageIds]
   )
   const previews = [
-    ...visibleExisting.map(image => listingImageUrl(image.path) || ''),
+    ...visibleExisting.map(image => listingImageUrl(image) || ''),
     ...filePreviews,
   ]
   const currentStatus = (initialValues?.status || 'draft') as ListingStatus
@@ -388,7 +388,7 @@ export default function ListingForm({
             {visibleExisting.map((image, index) => (
               <figure key={image.id} className="relative overflow-hidden rounded-xl border border-slate-600">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={listingImageUrl(image.path) || ''} alt="" className="aspect-square w-full object-cover" />
+                <img src={listingImageUrl(image) || ''} alt="" className="aspect-square w-full object-cover" />
                 <figcaption className="flex items-center justify-between gap-1 p-2 text-xs">
                   <button type="button" className="!px-2 !py-1 !text-xs" onClick={() => setCoverIndex(index)}>
                     {coverIndex === index ? t.listingForm.cover : t.listingForm.setCover}

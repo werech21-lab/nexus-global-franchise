@@ -3,9 +3,8 @@
 import Link from 'next/link'
 import { useLocale, useT } from '@/lib/i18n/provider'
 import {
-  coverPath,
+  coverImageSrc,
   industryLabel,
-  listingImageUrl,
   opportunityLabel,
   type ListingSummary,
 } from '@/lib/listings'
@@ -14,7 +13,7 @@ import { investmentRangeLabel } from '@/lib/investment'
 export default function ListingCard({ listing }: { listing: ListingSummary }) {
   const t = useT()
   const locale = useLocale()
-  const image = listingImageUrl(coverPath(listing))
+  const image = coverImageSrc(listing)
   const investment = investmentRangeLabel(listing, t, locale)
   const place = [listing.city, listing.country || t.listings.worldwide]
     .filter(Boolean)
