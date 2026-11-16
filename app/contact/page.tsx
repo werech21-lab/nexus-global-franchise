@@ -1,20 +1,20 @@
 
 import type { Metadata } from 'next'
-import PlaceholderNotice from '@/app/components/PlaceholderNotice'
-import { copy } from '@/lib/copy'
-import { pageMetadata } from '@/lib/seo'
+import PlaceholderNotice from '@/components/legal/PlaceholderNotice'
+import { getDictionary } from '@/lib/i18n/dictionary'
+import { localizedMetadata } from '@/lib/seo'
 
-export const metadata: Metadata = pageMetadata(
-  copy.placeholders.contactTitle,
-  copy.placeholders.contactBody,
-  '/contact'
-)
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getDictionary()
+  return localizedMetadata(t.placeholders.contactTitle, t.placeholders.contactBody, '/contact')
+}
 
-export default function Page() {
+export default async function Page() {
+  const t = await getDictionary()
   return (
     <PlaceholderNotice
-      title={copy.placeholders.contactTitle}
-      body={copy.placeholders.contactBody}
+      title={t.placeholders.contactTitle}
+      body={t.placeholders.contactBody}
     />
   )
 }
