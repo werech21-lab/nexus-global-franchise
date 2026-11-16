@@ -15,7 +15,7 @@ import {
   type ListingFormValues,
   type ListingImage,
 } from '@/lib/listings'
-import { syncListingImages } from '@/lib/listing-images'
+import { signListingImagePaths, syncListingImages } from '@/lib/listing-images'
 
 const EDIT_COLUMNS =
   'id,title,description,country,city,opportunity_type,industry,investment_min,investment_max,franchise_fee,royalty_percent,years_in_business,currency,status,owner_id,rejection_reason,listing_images(id,path,sort_order,is_cover)'
@@ -65,9 +65,17 @@ export default function EditListingPage() {
       } else if (data.owner_id !== authData.user.id) {
         setError(t.listingForm.notOwner)
       } else {
-        const images = ((data.listing_images || []) as ListingImage[]).sort(
+        const rawImages = ((data.listing_images || []) as ListingImage[]).sort(
           (a, b) => a.sort_order - b.sort_order
         )
+        const signed = await signListingImagePaths(
+          supabase,
+          rawImages.map(image => image.path)
+        )
+        const images = rawImages.map(image => ({
+          ...image,
+          signed_url: signed[image.path] || null,
+        }))
         const coverIndex = Math.max(
           0,
           images.findIndex(image => image.is_cover)

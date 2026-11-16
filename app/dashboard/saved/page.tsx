@@ -8,6 +8,7 @@ import { useT } from '@/lib/i18n/provider'
 import EmptyState from '@/components/ui/EmptyState'
 import ListingCard from '@/components/listings/ListingCard'
 import type { ListingSummary } from '@/types/listing'
+import { signListingRecords } from '@/lib/listing-images'
 
 export default function SavedListingsPage() {
   const t = useT()
@@ -56,7 +57,8 @@ export default function SavedListingsPage() {
         })
         .filter(Boolean) as ListingSummary[]
 
-      setListings(rows)
+      const signed = await signListingRecords(supabase, rows)
+      if (active) setListings(signed)
       setLoading(false)
     }
 

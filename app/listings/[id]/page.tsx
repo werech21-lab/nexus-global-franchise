@@ -13,7 +13,7 @@ import {
 } from '@/features/listings/queries'
 import { getDictionary, getRequestLocale } from '@/lib/i18n/dictionary'
 import {
-  coverPath,
+  coverImageSrc,
   industryLabel,
   listingImageUrl,
   opportunityLabel,
@@ -57,8 +57,8 @@ export default async function ListingDetailsPage({ params }: Props) {
   const saved = userId ? await isListingSaved(listing.id, userId) : false
   const profile = await getPublicProfile(listing.owner_id)
   const images = [...(listing.listing_images || [])].sort((a, b) => a.sort_order - b.sort_order)
-  const cover = listingImageUrl(coverPath(listing))
-  const gallery = images.length > 0 ? images : cover ? [{ id: 'cover', path: coverPath(listing) || '', sort_order: 0, is_cover: true }] : []
+  const cover = coverImageSrc(listing)
+  const gallery = images.length > 0 ? images : cover ? [{ id: 'cover', path: '', signed_url: cover, sort_order: 0, is_cover: true }] : []
   const investment = investmentRangeLabel(listing, t, locale)
   const place = [listing.city, listing.country || t.listings.worldwide].filter(Boolean).join(', ')
   const ownerName = profile?.display_name || t.user.unknown
@@ -76,7 +76,7 @@ export default async function ListingDetailsPage({ params }: Props) {
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 key={image.id}
-                src={listingImageUrl(image.path) || ''}
+                src={listingImageUrl(image) || cover || ''}
                 alt=""
                 className="aspect-[16/9] w-full object-cover"
               />
