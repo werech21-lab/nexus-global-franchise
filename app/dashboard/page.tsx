@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { copy } from '@/lib/copy'
 
 type Listing = {
   id: string
@@ -21,6 +22,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState('')
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [isAdmin, setIsAdmin] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -39,6 +41,9 @@ export default function Dashboard() {
       }
 
       setEmail(authData.user.email || '')
+
+      const { data: adminFlag } = await client.rpc('is_nexus_admin')
+      setIsAdmin(adminFlag === true)
 
       const { data, error } = await client
         .from('listings')
@@ -126,30 +131,45 @@ export default function Dashboard() {
   ).length
 
   if (loading) {
-    return <p className="py-12">Loading dashboard...</p>
+    return <p className="py-12">{copy.dashboard.loading}</p>
   }
 
   return (
     <section className="space-y-8 py-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">My Dashboard</h1>
+          <h1 className="text-3xl font-bold">{copy.dashboard.title}</h1>
           <p className="mt-2 text-blue-300">{email}</p>
         </div>
 
         <div className="flex flex-wrap gap-3">
-          <Link href="/account" className="btn">
-            Change Password
-          </Link>
-
-          <Link href="/dashboard/inquiries" className="btn">
-            Investor Inquiries
-          </Link>
-
           <Link href="/listings/new" className="btn">
-            + New Opportunity
+            {copy.dashboard.newOpportunity}
+          </Link>
+          <Link href="/account" className="btn">
+            {copy.dashboard.changePassword}
           </Link>
         </div>
+      </div>
+
+      <div className="flex flex-wrap gap-3">
+        <Link href="/dashboard/inquiries" className="btn">
+          {copy.dashboard.inquiries}
+        </Link>
+        <Link href="/dashboard/deals" className="btn">
+          {copy.dashboard.deals}
+        </Link>
+        <Link href="/dashboard/messages" className="btn">
+          {copy.dashboard.messages}
+        </Link>
+        <Link href="/deal-protection" className="btn">
+          {copy.dashboard.dealProtection}
+        </Link>
+        {isAdmin && (
+          <Link href="/admin" className="btn">
+            {copy.dashboard.admin}
+          </Link>
+        )}
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -173,14 +193,14 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <h2 className="text-2xl font-bold">My Opportunities</h2>
+      <h2 className="text-2xl font-bold">{copy.dashboard.myOpportunities}</h2>
 
       {message && (
         <p className="text-amber-300" role="status">{message}</p>
       )}
 
       {items.length === 0 && (
-        <p className="text-slate-400">No opportunities yet.</p>
+        <p className="text-slate-400">{copy.dashboard.empty}</p>
       )}
 
       <div className="space-y-4">
@@ -220,14 +240,14 @@ export default function Dashboard() {
                   )
                 }
               >
-                {item.status === 'published' ? 'Unpublish' : 'Publish'}
+                {item.status === 'published' ? copy.dashboard.unpublish : copy.dashboard.publish}
               </button>
 
               <Link
                 href={`/listings/${item.id}/edit`}
                 className="btn"
               >
-                Edit
+                {copy.dashboard.edit}
               </Link>
 
               <button
@@ -235,7 +255,7 @@ export default function Dashboard() {
                 disabled={busyId === item.id}
                 onClick={() => deleteListing(item.id)}
               >
-                Delete
+                {copy.dashboard.delete}
               </button>
             </div>
           </div>
@@ -244,7 +264,7 @@ export default function Dashboard() {
 
       <div className="border-t border-slate-700 pt-6">
         <button onClick={signOut} className="btn">
-          Sign Out
+          {copy.dashboard.signOut}
         </button>
       </div>
     </section>
