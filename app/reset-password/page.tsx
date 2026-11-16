@@ -4,9 +4,11 @@ import { useEffect, useState, type FormEvent } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { passwordsMatch, validatePassword } from '@/lib/password'
+import { getPasswordIssue, getPasswordMismatch, passwordIssueMessage } from '@/lib/password'
+import { useT } from '@/lib/i18n/provider'
 
 export default function ResetPasswordPage() {
+  const t = useT()
   const router = useRouter()
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -19,7 +21,7 @@ export default function ResetPasswordPage() {
   useEffect(() => {
     if (!supabase) {
       setChecking(false)
-      setError('Supabase is not configured. Check Vercel environment variables.')
+      setError(t.common.supabase)
       return
     }
 
@@ -56,7 +58,7 @@ export default function ResetPasswordPage() {
           setError(
             err instanceof Error
               ? err.message
-              : 'This reset link is invalid or has expired.'
+              : t.auth.invalidReset
           )
         }
       } finally {
@@ -78,8 +80,10 @@ export default function ResetPasswordPage() {
     setMessage('')
     setError('')
 
-    const passwordError =
-      validatePassword(password) || passwordsMatch(password, confirmPassword)
+    const passwordError = passwordIssueMessage(
+      getPasswordIssue(password) || getPasswordMismatch(password, confirmPassword),
+      t.password
+    )
 
     if (passwordError) {
       setError(passwordError)
@@ -89,18 +93,18 @@ export default function ResetPasswordPage() {
 
     try {
       if (!supabase) {
-        throw new Error('Supabase is not configured. Check Vercel environment variables.')
+        throw new Error(t.common.supabase)
       }
 
       const { error } = await supabase.auth.updateUser({ password })
       if (error) throw error
 
-      setMessage('Your password has been updated. Redirecting to login...')
+      setMessage(t.auth.passwordUpdated)
       await supabase.auth.signOut()
       router.push('/login')
       router.refresh()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong.')
+      setError(err instanceof Error ? err.message : t.common.error)
     } finally {
       setLoading(false)
     }
@@ -111,28 +115,28 @@ export default function ResetPasswordPage() {
       <div className="card">
         <div className="mb-8 text-center">
           <div className="mb-4 text-4xl">🔒</div>
-          <h1 className="text-3xl font-bold text-white">Set a new password</h1>
+          <h1 className="text-3xl font-bold text-white">{t.auth.resetTitle}</h1>
           <p className="mt-3 text-slate-300">
-            Choose a password with at least 10 characters, including letters and numbers.
+            {t.auth.resetIntro}
           </p>
         </div>
 
         {checking ? (
-          <p>Verifying your reset link...</p>
+          <p>{t.auth.verifyingReset}</p>
         ) : !hasRecoverySession ? (
           <div className="space-y-5">
             <p role="alert" className="rounded-lg bg-red-950 p-3 text-red-300">
-              {error || 'This reset link is invalid or has expired. Please request a new one.'}
+              {error || t.auth.invalidResetHint}
             </p>
             <Link href="/forgot-password" className="btn w-full text-center">
-              Request a new reset link
+              {t.auth.requestNewLink}
             </Link>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label htmlFor="password" className="mb-2 block">
-                New password
+                {t.auth.newPassword}
               </label>
               <input
                 id="password"
@@ -140,7 +144,7 @@ export default function ResetPasswordPage() {
                 required
                 minLength={10}
                 autoComplete="new-password"
-                placeholder="At least 10 characters, letters and numbers"
+                placeholder={t.auth.passwordHint}
                 value={password}
                 onChange={e => setPassword(e.target.value)}
               />
@@ -148,7 +152,7 @@ export default function ResetPasswordPage() {
 
             <div>
               <label htmlFor="confirmPassword" className="mb-2 block">
-                Confirm new password
+                {t.auth.confirmNewPassword}
               </label>
               <input
                 id="confirmPassword"
@@ -156,7 +160,7 @@ export default function ResetPasswordPage() {
                 required
                 minLength={10}
                 autoComplete="new-password"
-                placeholder="Re-enter your new password"
+                placeholder={t.auth.reenterNewPassword}
                 value={confirmPassword}
                 onChange={e => setConfirmPassword(e.target.value)}
               />
@@ -175,14 +179,14 @@ export default function ResetPasswordPage() {
             )}
 
             <button type="submit" disabled={loading} className="w-full">
-              {loading ? 'Please wait...' : 'Update password'}
+              {loading ? t.common.pleaseWait : t.auth.updatePassword}
             </button>
           </form>
         )}
 
         <div className="mt-6 text-center">
           <Link href="/login" className="text-sm">
-            ← Back to Login
+            {t.auth.backToLogin}
           </Link>
         </div>
       </div>
