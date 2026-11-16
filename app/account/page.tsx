@@ -4,9 +4,12 @@ import { useEffect, useState, type FormEvent } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { passwordsMatch, validatePassword } from '@/lib/password'
+import { getPasswordIssue, getPasswordMismatch, passwordIssueMessage } from '@/lib/password'
+import { interpolate } from '@/lib/i18n'
+import { useT } from '@/lib/i18n/provider'
 
 export default function AccountPage() {
+  const t = useT()
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [loadingUser, setLoadingUser] = useState(true)
@@ -20,7 +23,7 @@ export default function AccountPage() {
   useEffect(() => {
     async function loadUser() {
       if (!supabase) {
-        setError('Supabase is not configured. Check Vercel environment variables.')
+        setError(t.common.supabase)
         setLoadingUser(false)
         return
       }
@@ -45,8 +48,10 @@ export default function AccountPage() {
     setMessage('')
     setError('')
 
-    const passwordError =
-      validatePassword(password) || passwordsMatch(password, confirmPassword)
+    const passwordError = passwordIssueMessage(
+      getPasswordIssue(password) || getPasswordMismatch(password, confirmPassword),
+      t.password
+    )
 
     if (passwordError) {
       setError(passwordError)
@@ -56,7 +61,7 @@ export default function AccountPage() {
 
     try {
       if (!supabase) {
-        throw new Error('Supabase is not configured. Check Vercel environment variables.')
+        throw new Error(t.common.supabase)
       }
 
       const { error: reauthError } = await supabase.auth.signInWithPassword({
@@ -65,7 +70,7 @@ export default function AccountPage() {
       })
 
       if (reauthError) {
-        throw new Error('Current password is incorrect.')
+        throw new Error(t.auth.currentPasswordWrong)
       }
 
       const { error } = await supabase.auth.updateUser({ password })
@@ -74,39 +79,39 @@ export default function AccountPage() {
       setPassword('')
       setConfirmPassword('')
       setCurrentPassword('')
-      setMessage('Your password has been updated.')
+      setMessage(t.auth.passwordChanged)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong.')
+      setError(err instanceof Error ? err.message : t.common.error)
     } finally {
       setLoading(false)
     }
   }
 
   if (loadingUser) {
-    return <p className="py-12">Loading account...</p>
+    return <p className="py-12">{t.auth.accountLoading}</p>
   }
 
   return (
     <div className="mx-auto max-w-md py-12">
       <div className="card">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-white">Account</h1>
+          <h1 className="text-3xl font-bold text-white">{t.auth.accountTitle}</h1>
           <p className="mt-3 text-slate-300">
-            Signed in as <span className="text-amber-200">{email || 'your account'}</span>
+            {interpolate(t.auth.accountIntro, { email: email || t.auth.yourAccount })}
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
             <label htmlFor="currentPassword" className="mb-2 block">
-              Current password
+              {t.auth.currentPassword}
             </label>
             <input
               id="currentPassword"
               type="password"
               required
               autoComplete="current-password"
-              placeholder="Enter your current password"
+              placeholder={t.auth.currentPasswordPlaceholder}
               value={currentPassword}
               onChange={e => setCurrentPassword(e.target.value)}
             />
@@ -114,7 +119,7 @@ export default function AccountPage() {
 
           <div>
             <label htmlFor="password" className="mb-2 block">
-              New password
+              {t.auth.newPassword}
             </label>
             <input
               id="password"
@@ -122,7 +127,7 @@ export default function AccountPage() {
               required
               minLength={10}
               autoComplete="new-password"
-              placeholder="At least 10 characters, letters and numbers"
+              placeholder={t.auth.passwordHint}
               value={password}
               onChange={e => setPassword(e.target.value)}
             />
@@ -130,7 +135,7 @@ export default function AccountPage() {
 
           <div>
             <label htmlFor="confirmPassword" className="mb-2 block">
-              Confirm new password
+              {t.auth.confirmNewPassword}
             </label>
             <input
               id="confirmPassword"
@@ -138,7 +143,7 @@ export default function AccountPage() {
               required
               minLength={10}
               autoComplete="new-password"
-              placeholder="Re-enter your new password"
+              placeholder={t.auth.reenterNewPassword}
               value={confirmPassword}
               onChange={e => setConfirmPassword(e.target.value)}
             />
@@ -157,13 +162,13 @@ export default function AccountPage() {
           )}
 
           <button type="submit" disabled={loading} className="w-full">
-            {loading ? 'Please wait...' : 'Update password'}
+            {loading ? t.common.pleaseWait : t.auth.updatePassword}
           </button>
         </form>
 
         <div className="mt-6 text-center">
           <Link href="/dashboard" className="text-sm">
-            ← Back to Dashboard
+            {t.common.backToDashboard}
           </Link>
         </div>
       </div>

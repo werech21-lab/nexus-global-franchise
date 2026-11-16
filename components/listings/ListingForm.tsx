@@ -2,7 +2,7 @@
 'use client'
 
 import { useState, type FormEvent } from 'react'
-import { copy, opportunityTypeLabels } from '@/lib/copy'
+import { useT } from '@/lib/i18n/provider'
 import {
   OPPORTUNITY_TYPES,
   type ListingFormValues,
@@ -25,6 +25,7 @@ export default function ListingForm({
   message,
   onSubmit,
 }: Props) {
+  const t = useT()
   const [title, setTitle] = useState(initialValues?.title ?? '')
   const [description, setDescription] = useState(initialValues?.description ?? '')
   const [country, setCountry] = useState(initialValues?.country ?? '')
@@ -49,15 +50,15 @@ export default function ListingForm({
     }
 
     if (values.title.length < 3 || values.title.length > 200) {
-      setError(copy.listingForm.titleLength)
+      setError(t.listingForm.titleLength)
       return
     }
     if (values.description.length < 10 || values.description.length > 10000) {
-      setError(copy.listingForm.descriptionLength)
+      setError(t.listingForm.descriptionLength)
       return
     }
     if (!values.country) {
-      setError(copy.listingForm.countryRequired)
+      setError(t.listingForm.countryRequired)
       return
     }
 
@@ -66,26 +67,26 @@ export default function ListingForm({
 
   const submitLabel =
     submitting
-      ? copy.listingForm.saving
+      ? t.listingForm.saving
       : mode === 'create'
-        ? copy.listingForm.saveDraft
-        : copy.listingForm.saveChanges
+        ? t.listingForm.saveDraft
+        : t.listingForm.saveChanges
 
   return (
     <form onSubmit={handleSubmit} className="card max-w-2xl space-y-4">
       <h1 className="text-3xl font-bold">
-        {mode === 'create' ? copy.listingForm.newTitle : copy.listingForm.editTitle}
+        {mode === 'create' ? t.listingForm.newTitle : t.listingForm.editTitle}
       </h1>
 
       <div>
         <label htmlFor="listing-title" className="mb-2 block">
-          {copy.listingForm.titleLabel}
+          {t.listingForm.titleLabel}
         </label>
         <input
           id="listing-title"
           value={title}
           onChange={e => setTitle(e.target.value)}
-          placeholder={copy.listingForm.titlePlaceholder}
+          placeholder={t.listingForm.titlePlaceholder}
           required
           minLength={3}
           maxLength={200}
@@ -94,7 +95,7 @@ export default function ListingForm({
 
       <div>
         <label htmlFor="listing-type" className="mb-2 block">
-          {copy.listingForm.typeLabel}
+          {t.listingForm.typeLabel}
         </label>
         <select
           id="listing-type"
@@ -103,7 +104,7 @@ export default function ListingForm({
         >
           {OPPORTUNITY_TYPES.map(value => (
             <option key={value} value={value}>
-              {opportunityTypeLabels[value]}
+              {t.types[value]}
             </option>
           ))}
         </select>
@@ -111,27 +112,27 @@ export default function ListingForm({
 
       <div>
         <label htmlFor="listing-country" className="mb-2 block">
-          {copy.listingForm.countryLabel}
+          {t.listingForm.countryLabel}
         </label>
         <input
           id="listing-country"
           value={country}
           onChange={e => setCountry(e.target.value)}
-          placeholder={copy.listingForm.countryPlaceholder}
+          placeholder={t.listingForm.countryPlaceholder}
           required
         />
       </div>
 
       <div>
         <label htmlFor="listing-description" className="mb-2 block">
-          {copy.listingForm.descriptionLabel}
+          {t.listingForm.descriptionLabel}
         </label>
         <textarea
           id="listing-description"
           rows={6}
           value={description}
           onChange={e => setDescription(e.target.value)}
-          placeholder={copy.listingForm.descriptionPlaceholder}
+          placeholder={t.listingForm.descriptionPlaceholder}
           required
           minLength={10}
           maxLength={10000}
@@ -141,15 +142,15 @@ export default function ListingForm({
       {mode === 'edit' && (
         <div>
           <label htmlFor="listing-status" className="mb-2 block">
-            {copy.listingForm.statusLabel}
+            {t.listingForm.statusLabel}
           </label>
           <select
             id="listing-status"
             value={status}
             onChange={e => setStatus(e.target.value as ListingStatus)}
           >
-            <option value="draft">{copy.listingForm.statusDraft}</option>
-            <option value="published">{copy.listingForm.statusPublished}</option>
+            <option value="draft">{t.listingForm.statusDraft}</option>
+            <option value="published">{t.listingForm.statusPublished}</option>
           </select>
         </div>
       )}

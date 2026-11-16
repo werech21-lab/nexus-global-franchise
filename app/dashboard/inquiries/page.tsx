@@ -5,6 +5,9 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { useLocale, useT } from '@/lib/i18n/provider'
+import { formatDate } from '@/lib/format'
+import EmptyState from '@/components/ui/EmptyState'
 import { loadUserLabels } from '@/lib/users'
 
 type Inquiry = {
@@ -27,6 +30,8 @@ type Conversation = {
 }
 
 export default function InvestorInquiries() {
+  const t = useT()
+  const locale = useLocale()
   const router = useRouter()
 
   const [inquiries, setInquiries] = useState<Inquiry[]>([])
@@ -45,7 +50,7 @@ export default function InvestorInquiries() {
 
   const load = useCallback(async () => {
     if (!supabase) {
-      setMessage('Supabase is not configured.')
+      setMessage(t.common.supabase)
       setLoading(false)
       return
     }
@@ -59,7 +64,7 @@ export default function InvestorInquiries() {
       await client.auth.getUser()
 
     if (authError || !authData.user) {
-      setMessage('Please sign in to view inquiries.')
+      setMessage(t.common.signInFirst)
       setLoading(false)
       return
     }
@@ -107,7 +112,8 @@ export default function InvestorInquiries() {
 
     const labels = await loadUserLabels(
       client,
-      loadedInquiries.map(item => item.investor_id)
+      loadedInquiries.map(item => item.investor_id),
+      t.user
     )
     setInvestorLabels(labels)
 
@@ -157,7 +163,7 @@ export default function InvestorInquiries() {
 
       if (typeof data !== 'string' || !data) {
         throw new Error(
-          'Conversation could not be created.'
+          t.inquiries.acceptFailed
         )
       }
 
@@ -185,7 +191,7 @@ export default function InvestorInquiries() {
       setMessage(
         error instanceof Error
           ? error.message
-          : 'Unable to open conversation.'
+          : t.inquiries.openFailed
       )
     } finally {
       setUpdatingId(null)
@@ -216,7 +222,7 @@ export default function InvestorInquiries() {
         )
       )
 
-      setMessage('Inquiry closed successfully.')
+      setMessage(t.inquiries.closedOk)
     }
 
     setUpdatingId(null)
@@ -224,7 +230,7 @@ export default function InvestorInquiries() {
 
   const getListingTitle = (id: string) =>
     listings.find(item => item.id === id)?.title ||
-    'Unknown opportunity'
+    t.inquiries.unknownListing
 
   const pending = inquiries.filter(
     item =>
@@ -243,27 +249,26 @@ export default function InvestorInquiries() {
           href="/dashboard"
           className="text-amber-300"
         >
-          ← Back to Dashboard
+          <span className="inline-block rtl:rotate-180">←</span> {t.common.backToDashboard}
         </Link>
 
         <h1 className="text-3xl font-bold">
-          Investor Inquiries
+          {t.inquiries.title}
         </h1>
 
         <p className="text-slate-300">
-          Manage investor interest and secure
-          conversations.
+          {t.inquiries.intro}
         </p>
       </div>
 
       {loading ? (
-        <p>Loading inquiries...</p>
+        <p>{t.inquiries.loading}</p>
       ) : (
         <>
           <div className="grid gap-4 md:grid-cols-3">
             <div className="card">
               <p className="text-slate-400">
-                Total Inquiries
+                {t.inquiries.total}
               </p>
               <p className="text-3xl font-bold">
                 {inquiries.length}
@@ -272,7 +277,7 @@ export default function InvestorInquiries() {
 
             <div className="card">
               <p className="text-slate-400">
-                Pending
+                {t.inquiries.pending}
               </p>
               <p className="text-3xl font-bold text-amber-300">
                 {pending}
@@ -281,7 +286,7 @@ export default function InvestorInquiries() {
 
             <div className="card">
               <p className="text-slate-400">
-                Contacted
+                {t.inquiries.contacted}
               </p>
               <p className="text-3xl font-bold text-green-400">
                 {contacted}
@@ -300,9 +305,7 @@ export default function InvestorInquiries() {
 
           {inquiries.length === 0 && (
             <div className="card">
-              <p className="text-slate-300">
-                No investor inquiries yet.
-              </p>
+              <EmptyState title={t.inquiries.empty} />
             </div>
           )}
 
@@ -327,14 +330,12 @@ export default function InvestorInquiries() {
                       </h2>
 
                       <p className="mt-2 text-sm text-slate-400">
-                        Received:{' '}
-                        {new Date(
-                          inquiry.created_at
-                        ).toLocaleDateString('en-US')}
+                        {t.inquiries.received}:{' '}
+                        {formatDate(inquiry.created_at, locale)}
                       </p>
 
                       <p className="mt-1 text-sm text-slate-400">
-                        Investor:{' '}
+                        {t.inquiries.investor}:{' '}
                         {investorLabels[inquiry.investor_id] ||
                           inquiry.investor_id}
                       </p>
@@ -348,7 +349,7 @@ export default function InvestorInquiries() {
                   <div className="border-t border-slate-700 pt-4">
                     <p className="whitespace-pre-wrap text-slate-300">
                       {inquiry.message ||
-                        'No message provided.'}
+                        t.inquiries.noMessage}
                     </p>
                   </div>
 
@@ -360,7 +361,7 @@ export default function InvestorInquiries() {
                         }
                         className="btn"
                       >
-                        Open Conversation
+                        {t.inquiries.openConversation}
                       </Link>
                     ) : (
                       <button
@@ -372,8 +373,8 @@ export default function InvestorInquiries() {
                         }
                       >
                         {updatingId === inquiry.id
-                          ? 'Opening...'
-                          : 'Accept & Open Chat'}
+                          ? t.inquiries.opening
+                          : t.inquiries.accept}
                       </button>
                     )}
 
@@ -386,7 +387,7 @@ export default function InvestorInquiries() {
                           closeInquiry(inquiry.id)
                         }
                       >
-                        Close Inquiry
+                        {t.inquiries.closeInquiry}
                       </button>
                     )}
                   </div>

@@ -5,9 +5,11 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Suspense } from 'react'
 import { supabase } from '../../lib/supabase'
-import { passwordsMatch, validatePassword } from '@/lib/password'
+import { getPasswordIssue, getPasswordMismatch, passwordIssueMessage } from '@/lib/password'
+import { useT } from '@/lib/i18n/provider'
 
 function LoginForm() {
+  const t = useT()
   const router = useRouter()
   const searchParams = useSearchParams()
   const nextPath = searchParams.get('next') || '/dashboard'
@@ -31,12 +33,14 @@ function LoginForm() {
 
     try {
       if (!supabase) {
-        throw new Error('Supabase is not configured. Check Vercel environment variables.')
+        throw new Error(t.common.supabase)
       }
 
       if (mode === 'signup') {
-        const passwordError =
-          validatePassword(password) || passwordsMatch(password, confirmPassword)
+        const passwordError = passwordIssueMessage(
+          getPasswordIssue(password) || getPasswordMismatch(password, confirmPassword),
+          t.password
+        )
 
         if (passwordError) {
           throw new Error(passwordError)
@@ -58,7 +62,7 @@ function LoginForm() {
           return
         }
 
-        setMessage('Please check your email to confirm your account, then log in.')
+        setMessage(t.auth.confirmEmail)
       } else {
         const { error } = await supabase.auth.signInWithPassword({
           email,
@@ -71,7 +75,7 @@ function LoginForm() {
         router.refresh()
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong.')
+      setError(err instanceof Error ? err.message : t.common.error)
     } finally {
       setLoading(false)
     }
@@ -83,12 +87,10 @@ function LoginForm() {
         <div className="mb-8 text-center">
           <div className="mb-4 text-4xl">🌐</div>
           <h1 className="text-3xl font-bold text-white">
-            Nexus Global Franchise
+            {t.site.name}
           </h1>
           <p className="mt-3 text-slate-300">
-            {mode === 'login'
-              ? 'Welcome back to your global business network'
-              : 'Create your global business account'}
+            {mode === 'login' ? t.auth.welcomeBack : t.auth.createAccount}
           </p>
         </div>
 
@@ -100,10 +102,9 @@ function LoginForm() {
               setError('')
               setMessage('')
             }}
-            className="flex-1"
-            style={{ opacity: mode === 'login' ? 1 : 0.55 }}
+            className={`flex-1 ${mode === 'login' ? '' : 'opacity-55'}`}
           >
-            Login
+            {t.auth.loginTitle}
           </button>
           <button
             type="button"
@@ -112,24 +113,23 @@ function LoginForm() {
               setError('')
               setMessage('')
             }}
-            className="flex-1"
-            style={{ opacity: mode === 'signup' ? 1 : 0.55 }}
+            className={`flex-1 ${mode === 'signup' ? '' : 'opacity-55'}`}
           >
-            Sign Up
+            {t.auth.signupTitle}
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
             <label htmlFor="email" className="mb-2 block">
-              Email Address
+              {t.auth.email}
             </label>
             <input
               id="email"
               type="email"
               required
               autoComplete="email"
-              placeholder="you@example.com"
+              placeholder={t.auth.emailPlaceholder}
               value={email}
               onChange={e => setEmail(e.target.value)}
             />
@@ -137,7 +137,7 @@ function LoginForm() {
 
           <div>
             <label htmlFor="password" className="mb-2 block">
-              Password
+              {t.auth.password}
             </label>
             <input
               id="password"
@@ -147,8 +147,8 @@ function LoginForm() {
               autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
               placeholder={
                 mode === 'signup'
-                  ? 'At least 10 characters, letters and numbers'
-                  : 'Enter your password'
+                  ? t.auth.passwordHint
+                  : t.auth.enterPassword
               }
               value={password}
               onChange={e => setPassword(e.target.value)}
@@ -158,7 +158,7 @@ function LoginForm() {
           {mode === 'signup' && (
             <div>
               <label htmlFor="confirmPassword" className="mb-2 block">
-                Confirm password
+                {t.auth.confirmPassword}
               </label>
               <input
                 id="confirmPassword"
@@ -166,7 +166,7 @@ function LoginForm() {
                 required
                 minLength={10}
                 autoComplete="new-password"
-                placeholder="Re-enter your password"
+                placeholder={t.auth.reenterPassword}
                 value={confirmPassword}
                 onChange={e => setConfirmPassword(e.target.value)}
               />
@@ -174,9 +174,9 @@ function LoginForm() {
           )}
 
           {mode === 'login' && (
-            <div className="text-right">
+            <div className="text-end">
               <Link href="/forgot-password" className="text-sm">
-                Forgot password?
+                {t.auth.forgot}
               </Link>
             </div>
           )}
@@ -195,16 +195,16 @@ function LoginForm() {
 
           <button type="submit" disabled={loading} className="w-full">
             {loading
-              ? 'Please wait...'
+              ? t.common.pleaseWait
               : mode === 'login'
-                ? 'Login to Dashboard'
-                : 'Create Account'}
+                ? t.auth.loginSubmit
+                : t.auth.signupSubmit}
           </button>
         </form>
 
         <div className="mt-6 text-center">
           <Link href="/" className="text-sm">
-            ← Back to Homepage
+            {t.common.backToHome}
           </Link>
         </div>
       </div>
@@ -212,9 +212,14 @@ function LoginForm() {
   )
 }
 
+function LoginFallback() {
+  const t = useT()
+  return <p className="py-12">{t.common.loading}</p>
+}
+
 export default function LoginPage() {
   return (
-    <Suspense fallback={<p className="py-12">Loading...</p>}>
+    <Suspense fallback={<LoginFallback />}>
       <LoginForm />
     </Suspense>
   )

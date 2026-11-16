@@ -4,9 +4,9 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
-import ListingForm from '@/app/components/ListingForm'
+import ListingForm from '@/components/listings/ListingForm'
 import { supabase } from '@/lib/supabase'
-import { copy } from '@/lib/copy'
+import { useT } from '@/lib/i18n/provider'
 import {
   isOpportunityType,
   type ListingFormValues,
@@ -16,6 +16,7 @@ import {
 export default function EditListingPage() {
   const params = useParams()
   const router = useRouter()
+  const t = useT()
   const id = params.id as string
 
   const [loading, setLoading] = useState(true)
@@ -30,7 +31,7 @@ export default function EditListingPage() {
     async function load() {
       if (!supabase) {
         if (active) {
-          setError(copy.listingForm.configure)
+          setError(t.listingForm.configure)
           setLoading(false)
         }
         return
@@ -53,9 +54,9 @@ export default function EditListingPage() {
       if (fetchError) {
         setError(fetchError.message)
       } else if (!data) {
-        setError(copy.listingForm.notFound)
+        setError(t.listingForm.notFound)
       } else if (data.owner_id !== authData.user.id) {
-        setError(copy.listingForm.notOwner)
+        setError(t.listingForm.notOwner)
       } else {
         setInitialValues({
           title: data.title || '',
@@ -74,7 +75,7 @@ export default function EditListingPage() {
     if (id) {
       void load()
     } else {
-      setError(copy.listingForm.notFound)
+      setError(t.listingForm.notFound)
       setLoading(false)
     }
 
@@ -85,7 +86,7 @@ export default function EditListingPage() {
 
   async function handleSubmit(values: ListingFormValues) {
     if (!supabase) {
-      setMessage(copy.listingForm.configure)
+      setMessage(t.listingForm.configure)
       return
     }
 
@@ -116,7 +117,7 @@ export default function EditListingPage() {
     setSubmitting(false)
 
     if (updateError || !data) {
-      setMessage(updateError?.message || 'Update failed.')
+      setMessage(updateError?.message || t.listingForm.saveFailed)
       return
     }
 
@@ -125,17 +126,17 @@ export default function EditListingPage() {
   }
 
   if (loading) {
-    return <p className="py-12">{copy.listingForm.loading}</p>
+    return <p className="py-12">{t.listingForm.loading}</p>
   }
 
   if (error || !initialValues) {
     return (
       <section className="space-y-5 py-12">
         <h1 className="text-2xl font-bold">
-          {error || copy.listingForm.notFound}
+          {error || t.listingForm.notFound}
         </h1>
         <Link href="/dashboard" className="btn">
-          {copy.listingForm.back}
+          {t.common.backToDashboard}
         </Link>
       </section>
     )
@@ -144,7 +145,7 @@ export default function EditListingPage() {
   return (
     <div className="space-y-5">
       <Link href="/dashboard" className="text-amber-300">
-        ← {copy.listingForm.back}
+        {t.common.backToDashboard}
       </Link>
       <ListingForm
         key={id}

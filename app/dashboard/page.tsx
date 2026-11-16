@@ -5,7 +5,9 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { copy } from '@/lib/copy'
+import { interpolate } from '@/lib/i18n'
+import { useLocale, useT } from '@/lib/i18n/provider'
+import { formatDate } from '@/lib/format'
 
 type Listing = {
   id: string
@@ -15,6 +17,8 @@ type Listing = {
 }
 
 export default function Dashboard() {
+  const t = useT()
+  const locale = useLocale()
   const router = useRouter()
 
   const [email, setEmail] = useState('')
@@ -27,7 +31,7 @@ export default function Dashboard() {
   useEffect(() => {
     async function load() {
       if (!supabase) {
-        setMessage('Supabase is not configured.')
+        setMessage(t.common.supabase)
         setLoading(false)
         return
       }
@@ -77,14 +81,14 @@ export default function Dashboard() {
       .single()
 
     if (error || !data) {
-      setMessage(error?.message || 'Update failed.')
+      setMessage(error?.message || t.dashboard.updateFailed)
     } else {
       setItems(prev =>
         prev.map(item =>
           item.id === id ? { ...item, status } : item
         )
       )
-      setMessage(`Opportunity status updated to ${status}.`)
+      setMessage(interpolate(t.listingForm.statusUpdated, { status }))
     }
 
     setBusyId(null)
@@ -93,7 +97,7 @@ export default function Dashboard() {
   async function deleteListing(id: string) {
     if (!supabase) return
 
-    if (!window.confirm('Delete this opportunity?')) return
+    if (!window.confirm(t.listingForm.deleteConfirm)) return
 
     setBusyId(id)
     setMessage('')
@@ -106,10 +110,10 @@ export default function Dashboard() {
       .single()
 
     if (error || !data) {
-      setMessage(error?.message || 'Delete failed.')
+      setMessage(error?.message || t.dashboard.deleteFailed)
     } else {
       setItems(prev => prev.filter(item => item.id !== id))
-      setMessage('Opportunity deleted successfully.')
+      setMessage(t.listingForm.deleted)
     }
 
     setBusyId(null)
@@ -131,76 +135,76 @@ export default function Dashboard() {
   ).length
 
   if (loading) {
-    return <p className="py-12">{copy.dashboard.loading}</p>
+    return <p className="py-12">{t.dashboard.loading}</p>
   }
 
   return (
     <section className="space-y-8 py-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">{copy.dashboard.title}</h1>
+          <h1 className="text-3xl font-bold">{t.dashboard.title}</h1>
           <p className="mt-2 text-blue-300">{email}</p>
         </div>
 
         <div className="flex flex-wrap gap-3">
           <Link href="/listings/new" className="btn">
-            {copy.dashboard.newOpportunity}
+            {t.dashboard.newOpportunity}
           </Link>
           <Link href="/account" className="btn">
-            {copy.dashboard.changePassword}
+            {t.dashboard.changePassword}
           </Link>
         </div>
       </div>
 
       <div className="flex flex-wrap gap-3">
         <Link href="/dashboard/inquiries" className="btn">
-          {copy.dashboard.inquiries}
+          {t.dashboard.inquiries}
         </Link>
         <Link href="/dashboard/deals" className="btn">
-          {copy.dashboard.deals}
+          {t.dashboard.deals}
         </Link>
         <Link href="/dashboard/messages" className="btn">
-          {copy.dashboard.messages}
+          {t.dashboard.messages}
         </Link>
         <Link href="/deal-protection" className="btn">
-          {copy.dashboard.dealProtection}
+          {t.dashboard.dealProtection}
         </Link>
         {isAdmin && (
           <Link href="/admin" className="btn">
-            {copy.dashboard.admin}
+            {t.dashboard.admin}
           </Link>
         )}
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
         <div className="card">
-          <p className="text-blue-300">Total Opportunities</p>
+          <p className="text-blue-300">{t.dashboard.total}</p>
           <p className="mt-2 text-3xl font-bold">{items.length}</p>
         </div>
 
         <div className="card">
-          <p className="text-blue-300">Published</p>
+          <p className="text-blue-300">{t.dashboard.published}</p>
           <p className="mt-2 text-3xl font-bold text-green-400">
             {published}
           </p>
         </div>
 
         <div className="card">
-          <p className="text-blue-300">Drafts</p>
+          <p className="text-blue-300">{t.dashboard.drafts}</p>
           <p className="mt-2 text-3xl font-bold text-amber-400">
             {drafts}
           </p>
         </div>
       </div>
 
-      <h2 className="text-2xl font-bold">{copy.dashboard.myOpportunities}</h2>
+      <h2 className="text-2xl font-bold">{t.dashboard.myOpportunities}</h2>
 
       {message && (
         <p className="text-amber-300" role="status">{message}</p>
       )}
 
       {items.length === 0 && (
-        <p className="text-slate-400">{copy.dashboard.empty}</p>
+        <p className="text-slate-400">{t.dashboard.empty}</p>
       )}
 
       <div className="space-y-4">
@@ -213,19 +217,19 @@ export default function Dashboard() {
               <h3 className="text-xl font-bold">{item.title}</h3>
 
               <p className="mt-2">
-                Status:{' '}
+                {t.dashboard.status}:{' '}
                 <span className={
                   item.status === 'published'
                     ? 'text-green-400'
                     : 'text-amber-400'
                 }>
-                  {item.status}
+                  {item.status === 'published' ? t.listingForm.statusPublished : t.listingForm.statusDraft}
                 </span>
               </p>
 
               <p className="mt-2 text-sm text-slate-400">
-                Created:{' '}
-                {new Date(item.created_at).toLocaleDateString('en-US')}
+                {t.listingForm.created}:{' '}
+                {formatDate(item.created_at, locale)}
               </p>
             </div>
 
@@ -240,14 +244,14 @@ export default function Dashboard() {
                   )
                 }
               >
-                {item.status === 'published' ? copy.dashboard.unpublish : copy.dashboard.publish}
+                {item.status === 'published' ? t.dashboard.unpublish : t.dashboard.publish}
               </button>
 
               <Link
                 href={`/listings/${item.id}/edit`}
                 className="btn"
               >
-                {copy.dashboard.edit}
+                {t.dashboard.edit}
               </Link>
 
               <button
@@ -255,7 +259,7 @@ export default function Dashboard() {
                 disabled={busyId === item.id}
                 onClick={() => deleteListing(item.id)}
               >
-                {copy.dashboard.delete}
+                {t.dashboard.delete}
               </button>
             </div>
           </div>
@@ -264,7 +268,7 @@ export default function Dashboard() {
 
       <div className="border-t border-slate-700 pt-6">
         <button onClick={signOut} className="btn">
-          {copy.dashboard.signOut}
+          {t.dashboard.signOut}
         </button>
       </div>
     </section>

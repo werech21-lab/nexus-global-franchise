@@ -1,12 +1,12 @@
 import type { ReactNode } from 'react'
 import type { Metadata } from 'next'
-import { pageMetadata } from '@/lib/seo'
+import { getDictionary } from '@/lib/i18n/dictionary'
+import { localizedMetadata } from '@/lib/seo'
 
-export const metadata: Metadata = pageMetadata(
-  'List an Opportunity',
-  'Create a new marketplace listing as a draft.',
-  '/listings/new'
-)
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getDictionary()
+  return localizedMetadata(t.listingForm.newTitle, t.listingForm.newMeta, '/listings/new')
+}
 
 export default function Layout({ children }: { children: ReactNode }) {
   return children

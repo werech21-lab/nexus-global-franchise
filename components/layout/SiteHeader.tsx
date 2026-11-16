@@ -1,18 +1,19 @@
-
 'use client'
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { copy } from '@/lib/copy'
-import AccountMenu from './AccountMenu'
-
-const links = [
-  { href: '/listings', label: copy.nav.explore },
-  { href: '/dashboard', label: copy.nav.dashboard },
-]
+import { useT } from '@/lib/i18n/provider'
+import AccountMenu from '@/components/account/AccountMenu'
+import LanguageSwitcher from './LanguageSwitcher'
 
 export default function SiteHeader() {
+  const t = useT()
   const [open, setOpen] = useState(false)
+
+  const links = [
+    { href: '/listings', label: t.nav.explore },
+    { href: '/dashboard', label: t.nav.dashboard },
+  ]
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -36,7 +37,7 @@ export default function SiteHeader() {
         aria-label="Main"
       >
         <Link href="/" className="text-xl font-bold">
-          🌐 {copy.site.name}
+          🌐 {t.site.name}
         </Link>
 
         <div className="hidden items-center gap-5 md:flex">
@@ -45,17 +46,19 @@ export default function SiteHeader() {
               {link.label}
             </Link>
           ))}
+          <LanguageSwitcher />
           <AccountMenu />
         </div>
 
         <div className="flex items-center gap-3 md:hidden">
+          <LanguageSwitcher />
           <AccountMenu />
           <button
             type="button"
             className="!bg-slate-800 !px-3 !py-2 !text-amber-200"
             aria-expanded={open}
             aria-controls="mobile-menu"
-            aria-label={open ? copy.nav.closeMenu : copy.nav.openMenu}
+            aria-label={open ? t.nav.closeMenu : t.nav.openMenu}
             onClick={() => setOpen(current => !current)}
           >
             {open ? '✕' : '☰'}
@@ -73,7 +76,7 @@ export default function SiteHeader() {
             className="block rounded-xl px-3 py-3"
             onClick={() => setOpen(false)}
           >
-            {copy.nav.home}
+            {t.nav.home}
           </Link>
           {links.map(link => (
             <Link

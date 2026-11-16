@@ -1,381 +1,86 @@
-
-'use client'
-
-import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { useParams } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import { notFound } from 'next/navigation'
+import type { Metadata } from 'next'
+import InquiryForm from '@/features/listings/InquiryForm'
+import Badge from '@/components/ui/Badge'
+import {
+  getCurrentUserId,
+  getPublishedListing,
+  hasExistingInquiry,
+} from '@/features/listings/queries'
+import { getDictionary, getRequestLocale } from '@/lib/i18n/dictionary'
+import { opportunityLabel } from '@/lib/listings'
+import { formatDate } from '@/lib/format'
+import { pageMetadata, SITE_DESCRIPTION, SITE_NAME } from '@/lib/seo'
 
-type Listing = {
-  id: string
-  title: string
-  description: string | null
-  country: string | null
-  opportunity_type: string | null
-  created_at: string
-  owner_id: string
+export const dynamic = 'force-dynamic'
+
+type Props = {
+  params: Promise<{ id: string }>
 }
 
-export default function ListingDetails() {
-  const params = useParams()
-  const id = params.id as string
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { id } = await params
+  const locale = await getRequestLocale()
+  const t = await getDictionary(locale)
+  const fallback = pageMetadata(SITE_NAME, t.site.tagline || SITE_DESCRIPTION, `/listings/${id}`, locale)
 
-  const [listing, setListing] = useState<Listing | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const listing = await getPublishedListing(id)
+  if (!listing?.title) return fallback
 
-  const [userId, setUserId] = useState<string | null>(null)
-  const [authLoading, setAuthLoading] = useState(true)
+  const description = (listing.description || t.site.tagline || SITE_DESCRIPTION).slice(0, 160)
+  return pageMetadata(listing.title, description, `/listings/${id}`, locale)
+}
 
-  const [inquiryMessage, setInquiryMessage] = useState('')
-  const [sending, setSending] = useState(false)
-  const [inquiryResult, setInquiryResult] = useState('')
-  const [inquirySent, setInquirySent] = useState(false)
-  const [alreadyInquired, setAlreadyInquired] = useState(false)
+export default async function ListingDetailsPage({ params }: Props) {
+  const { id } = await params
+  const t = await getDictionary()
+  const locale = await getRequestLocale()
+  const listing = await getPublishedListing(id)
 
-  useEffect(() => {
-    let active = true
+  if (!listing) notFound()
 
-    async function load() {
-      setLoading(true)
-      setAuthLoading(true)
-      setError('')
-      setListing(null)
-      setInquirySent(false)
-      setAlreadyInquired(false)
-      setInquiryResult('')
-
-      if (!supabase) {
-        if (active) {
-          setError('Supabase is not configured.')
-          setLoading(false)
-          setAuthLoading(false)
-        }
-        return
-      }
-
-      const client = supabase
-
-      const { data: authData } = await client.auth.getUser()
-
-      if (!active) return
-
-      const currentUserId = authData.user?.id || null
-
-      setUserId(currentUserId)
-      setAuthLoading(false)
-
-      const { data, error: fetchError } = await client
-        .from('listings')
-        .select(
-          'id,title,description,country,opportunity_type,created_at,owner_id'
-        )
-        .eq('id', id)
-        .eq('status', 'published')
-        .maybeSingle()
-
-      if (!active) return
-
-      if (fetchError) {
-        setError(fetchError.message)
-      } else if (!data) {
-        setError('Opportunity not found.')
-      } else {
-        setListing(data)
-
-        if (
-          currentUserId &&
-          currentUserId !== data.owner_id
-        ) {
-          const {
-            data: existingInquiry,
-            error: checkError
-          } = await client
-            .from('inquiries')
-            .select('id')
-            .eq('listing_id', data.id)
-            .eq('investor_id', currentUserId)
-            .limit(1)
-            .maybeSingle()
-
-          if (!active) return
-
-          if (!checkError && existingInquiry) {
-            setAlreadyInquired(true)
-          }
-        }
-      }
-
-      if (active) {
-        setLoading(false)
-      }
-    }
-
-    if (id) {
-      load()
-    } else {
-      setError('Invalid opportunity ID.')
-      setLoading(false)
-      setAuthLoading(false)
-    }
-
-    return () => {
-      active = false
-    }
-  }, [id])
-
-  async function sendInquiry() {
-    if (
-      !supabase ||
-      !listing ||
-      sending ||
-      inquirySent ||
-      alreadyInquired
-    ) {
-      return
-    }
-
-    const message = inquiryMessage.trim()
-
-    if (message.length < 10) {
-      setInquiryResult(
-        'Please enter a message of at least 10 characters.'
-      )
-      return
-    }
-
-    if (message.length > 2000) {
-      setInquiryResult(
-        'Your message must not exceed 2000 characters.'
-      )
-      return
-    }
-
-    setSending(true)
-    setInquiryResult('')
-
-    try {
-      const { data: authData, error: authError } =
-        await supabase.auth.getUser()
-
-      if (authError || !authData.user) {
-        setInquiryResult('Please sign in first.')
-        return
-      }
-
-      const investorId = authData.user.id
-
-      if (investorId === listing.owner_id) {
-        setInquiryResult(
-          'You cannot send an inquiry to your own opportunity.'
-        )
-        return
-      }
-
-      const { error: insertError } = await supabase
-        .from('inquiries')
-        .insert({
-          listing_id: listing.id,
-          investor_id: investorId,
-          message,
-          status: 'pending'
-        })
-
-      if (insertError) {
-        if (insertError.code === '23505') {
-          setAlreadyInquired(true)
-          setInquiryResult('')
-          return
-        }
-
-        if (insertError.code === '23514') {
-          setInquiryResult(
-            'Your message does not meet the required length. Please enter between 10 and 2000 characters.'
-          )
-          return
-        }
-
-        throw insertError
-      }
-
-      setInquirySent(true)
-      setInquiryMessage('')
-      setInquiryResult('Your inquiry was sent successfully!')
-    } catch (err) {
-      console.error('Inquiry submission error:', err)
-
-      setInquiryResult(
-        err instanceof Error
-          ? err.message
-          : 'Failed to send inquiry. Please try again.'
-      )
-    } finally {
-      setSending(false)
-    }
-  }
-
-  if (loading) {
-    return (
-      <p className="py-12">
-        Loading opportunity...
-      </p>
-    )
-  }
-
-  if (error || !listing) {
-    return (
-      <div className="space-y-5 py-12">
-        <h1 className="text-2xl font-bold">
-          {error || 'Opportunity not found.'}
-        </h1>
-
-        <Link href="/listings" className="btn">
-          Back to Opportunities
-        </Link>
-      </div>
-    )
-  }
-
-  const isOwner = userId === listing.owner_id
+  const userId = await getCurrentUserId()
+  const alreadyInquired =
+    userId && userId !== listing.owner_id
+      ? await hasExistingInquiry(listing.id, userId)
+      : false
 
   return (
     <section className="space-y-8 py-8">
-      <Link
-        href="/listings"
-        className="text-amber-300"
-      >
-        ← Back to Opportunities
+      <Link href="/listings" className="text-amber-300">
+        <span className="inline-block rtl:rotate-180">←</span> {t.common.backToListings}
       </Link>
 
       <div className="card space-y-6">
         <div className="flex flex-wrap gap-3">
-          <span className="rounded-full bg-amber-500/15 px-4 py-2 text-amber-300">
-            {(listing.opportunity_type || 'Opportunity')
-              .replaceAll('_', ' ')}
-          </span>
-
-          <span className="rounded-full bg-slate-700 px-4 py-2">
-            {listing.country || 'Worldwide'}
-          </span>
+          <Badge tone="gold">
+            {opportunityLabel(listing.opportunity_type, t)}
+          </Badge>
+          <Badge>{listing.country || t.listings.worldwide}</Badge>
         </div>
 
-        <h1 className="text-3xl md:text-4xl font-bold">
-          {listing.title}
-        </h1>
+        <h1 className="text-3xl font-bold md:text-4xl">{listing.title}</h1>
 
         <div className="border-t border-slate-700 pt-6">
-          <h2 className="mb-4 text-2xl font-bold">
-            About This Opportunity
-          </h2>
-
+          <h2 className="mb-4 text-2xl font-bold">{t.listings.aboutTitle}</h2>
           <p className="whitespace-pre-wrap leading-8 text-slate-300">
-            {listing.description || 'No description available.'}
+            {listing.description || t.listings.noDescription}
           </p>
         </div>
 
         <div className="border-t border-slate-700 pt-6">
           <p className="text-sm text-slate-400">
-            Listed on{' '}
-            {new Date(listing.created_at)
-              .toLocaleDateString('en-US')}
+            {t.listings.listedOn} {formatDate(listing.created_at, locale)}
           </p>
         </div>
       </div>
 
-      <div className="card space-y-4">
-        <h2 className="text-2xl font-bold">
-          Interested in this opportunity?
-        </h2>
-
-        <p className="text-slate-300">
-          Connect with business owners and explore
-          potential investment opportunities.
-        </p>
-
-        {authLoading ? (
-          <p className="text-slate-400">
-            Checking your account...
-          </p>
-        ) : !userId ? (
-          <Link href="/login" className="btn">
-            Sign In to Continue
-          </Link>
-        ) : isOwner ? (
-          <p className="text-amber-300">
-            This is your opportunity.
-            You cannot send an inquiry to yourself.
-          </p>
-        ) : alreadyInquired ? (
-          <div
-            role="status"
-            className="rounded-lg border border-amber-600 bg-amber-900/20 p-4 text-amber-300"
-          >
-            <p className="font-bold">
-              Inquiry Already Submitted
-            </p>
-
-            <p className="mt-2">
-              You have already sent an inquiry for this
-              opportunity. The owner can review your request.
-            </p>
-          </div>
-        ) : inquirySent ? (
-          <div
-            role="status"
-            className="rounded-lg border border-green-700 bg-green-900/20 p-4 text-green-400"
-          >
-            Your inquiry was sent successfully!
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <label
-              htmlFor="inquiry-message"
-              className="block font-semibold"
-            >
-              Your Message
-            </label>
-
-            <textarea
-              id="inquiry-message"
-              className="w-full rounded-lg border border-slate-600 bg-slate-900 p-4 text-white outline-none focus:border-amber-400"
-              rows={5}
-              minLength={10}
-              maxLength={2000}
-              placeholder="Hello, I am interested in this investment opportunity. I would like to learn more..."
-              value={inquiryMessage}
-              onChange={(e) => {
-                setInquiryMessage(e.target.value)
-                setInquiryResult('')
-              }}
-            />
-
-            <p className="text-sm text-slate-400">
-              Minimum 10 characters — Maximum 2000 characters.
-            </p>
-
-            <button
-              type="button"
-              className="btn"
-              onClick={sendInquiry}
-              disabled={
-                sending ||
-                inquiryMessage.trim().length < 10
-              }
-            >
-              {sending ? 'Sending...' : 'Send Inquiry'}
-            </button>
-
-            {inquiryResult && (
-              <p
-                role="status"
-                className="text-amber-300"
-              >
-                {inquiryResult}
-              </p>
-            )}
-          </div>
-        )}
-      </div>
+      <InquiryForm
+        listing={listing}
+        userId={userId}
+        alreadyInquired={alreadyInquired}
+      />
     </section>
   )
 }

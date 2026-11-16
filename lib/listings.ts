@@ -1,38 +1,29 @@
-import { opportunityTypeLabels } from './copy'
+import {
+  OPPORTUNITY_TYPES,
+  isOpportunityType,
+  type ListingFormValues,
+  type ListingStatus,
+  type ListingSummary,
+  type OpportunityType,
+} from '@/types/listing'
+import type { Messages } from '@/lib/i18n'
 
-export const OPPORTUNITY_TYPES = [
-  'franchise',
-  'business_sale',
-  'partnership',
-  'exclusive_agency',
-] as const
-
-export type OpportunityType = (typeof OPPORTUNITY_TYPES)[number]
-
-export type ListingStatus = 'draft' | 'published'
-
-export type ListingSummary = {
-  id: string
-  title: string
-  description: string | null
-  country: string | null
-  opportunity_type: string | null
-  created_at?: string
+export {
+  OPPORTUNITY_TYPES,
+  isOpportunityType,
+  type ListingFormValues,
+  type ListingStatus,
+  type ListingSummary,
+  type OpportunityType,
 }
 
-export type ListingFormValues = {
-  title: string
-  description: string
-  country: string
-  opportunity_type: OpportunityType
-  status: ListingStatus
-}
-
-export function opportunityLabel(type: string | null | undefined): string {
-  if (!type) return 'Opportunity'
-  return opportunityTypeLabels[type] || type.replaceAll('_', ' ')
-}
-
-export function isOpportunityType(value: string): value is OpportunityType {
-  return (OPPORTUNITY_TYPES as readonly string[]).includes(value)
+export function opportunityLabel(
+  type: string | null | undefined,
+  messages: Pick<Messages, 'types' | 'listings'>
+): string {
+  if (!type) return messages.listings.opportunityFallback
+  if (type in messages.types) {
+    return messages.types[type as keyof Messages['types']]
+  }
+  return type.replaceAll('_', ' ')
 }

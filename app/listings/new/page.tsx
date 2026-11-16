@@ -4,13 +4,14 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import ListingForm from '@/app/components/ListingForm'
+import ListingForm from '@/components/listings/ListingForm'
 import { supabase } from '@/lib/supabase'
-import { copy } from '@/lib/copy'
+import { useT } from '@/lib/i18n/provider'
 import type { ListingFormValues } from '@/lib/listings'
 
 export default function NewListingPage() {
   const router = useRouter()
+  const t = useT()
   const [ready, setReady] = useState(false)
   const [signedIn, setSignedIn] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -45,7 +46,7 @@ export default function NewListingPage() {
 
   async function handleSubmit(values: ListingFormValues) {
     if (!supabase) {
-      setMessage(copy.listingForm.configure)
+      setMessage(t.listingForm.configure)
       return
     }
 
@@ -81,16 +82,16 @@ export default function NewListingPage() {
   }
 
   if (!ready) {
-    return <p className="py-12">{copy.listingForm.loading}</p>
+    return <p className="py-12">{t.listingForm.loading}</p>
   }
 
   if (!signedIn) {
     return (
       <section className="card max-w-2xl space-y-4">
-        <h1 className="text-3xl font-bold">{copy.listingForm.newTitle}</h1>
-        <p>{copy.listingForm.signInRequired}</p>
+        <h1 className="text-3xl font-bold">{t.listingForm.newTitle}</h1>
+        <p>{t.listingForm.signInRequired}</p>
         <Link href="/login?next=/listings/new" className="btn">
-          {copy.listingForm.signInLink}
+          {t.listingForm.signInLink}
         </Link>
       </section>
     )
