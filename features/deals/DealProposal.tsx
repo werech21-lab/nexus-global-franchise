@@ -116,7 +116,7 @@ export default function DealProposal({
       {deal ? (
         <div className="text-sm text-slate-300">
           <p>
-            {formatMoney(deal.amount, deal.currency, locale)} · {deal.status}
+            {formatMoney(deal.amount, deal.currency, locale)} · {(t.deals.statusLabels as Record<string, string>)[deal.status] || deal.status}
           </p>
           <p className="mt-1">
             {t.deals.investor}: {deal.investor_approved ? t.deals.approved : t.deals.pendingApproval}

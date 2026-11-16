@@ -33,6 +33,8 @@ export {
 
 export const LISTING_PAGE_SIZE = 12
 export const MAX_LISTING_IMAGES = 8
+// Matches the listing-images bucket file_size_limit (5 MB).
+export const MAX_LISTING_IMAGE_BYTES = 5 * 1024 * 1024
 
 export type ListingSort = 'newest' | 'investment_asc' | 'investment_desc'
 
@@ -63,6 +65,14 @@ export function industryLabel(
 ): string {
   if (!industry) return ''
   return messages.industries[industry] || industry.replaceAll('_', ' ')
+}
+
+export function countryLabel(
+  country: string | null | undefined,
+  messages: { countries: Record<string, string> }
+): string {
+  if (!country) return ''
+  return messages.countries[country] || country
 }
 
 export function listingImageUrl(
