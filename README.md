@@ -17,3 +17,6 @@ Never commit `.env.local` or Supabase service_role/secret keys. Row Level Securi
 
 ## Security
 See `SECURITY.md` for password reset, MFA, and other manual Supabase dashboard steps. The app includes forgot/reset password pages, a signed-in change-password page at `/account`, cookie-based sessions, and middleware that protects `/dashboard`, `/admin`, and `/account`.
+
+## Database
+SQL under `supabase/` must be applied manually in the Supabase SQL Editor. See `supabase/README.md`. A migration in `supabase/migrations/` updates listings RLS so owners can publish, unpublish, and delete their listings; it is not applied automatically.
