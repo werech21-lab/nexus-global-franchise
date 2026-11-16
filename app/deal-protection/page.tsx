@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import { useT } from '@/lib/i18n/provider'
 
 type Agreement = {
   id: string
@@ -16,6 +17,7 @@ type Agreement = {
 }
 
 export default function DealProtectionPage() {
+  const t = useT()
   const [agreement, setAgreement] =
     useState<Agreement | null>(null)
   const [loading, setLoading] = useState(true)
@@ -26,7 +28,7 @@ export default function DealProtectionPage() {
 
     async function loadAgreement() {
       if (!supabase) {
-        setError('Supabase is not configured.')
+        setError(t.common.supabase)
         setLoading(false)
         return
       }
@@ -64,23 +66,22 @@ export default function DealProtectionPage() {
           href="/dashboard"
           className="text-amber-300"
         >
-          ← Back to Dashboard
+          <span className="inline-block rtl:rotate-180">←</span> {t.common.backToDashboard}
         </Link>
 
         <h1 className="text-3xl font-bold">
-          Nexus Deal Protection
+          {t.dealProtection.title}
         </h1>
 
         <p className="text-slate-300">
-          Brokerage transparency, introduction
-          records and commission protection.
+          {t.dealProtection.intro}
         </p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
         <div className="card space-y-2">
           <p className="text-slate-400">
-            Proposed Success Commission
+            {t.dealProtection.commissionTitle}
           </p>
 
           <p className="text-4xl font-bold text-amber-300">
@@ -88,24 +89,21 @@ export default function DealProtectionPage() {
           </p>
 
           <p className="text-sm text-slate-300">
-            Payable by the opportunity owner
-            upon a qualifying completed transaction,
-            subject to a final approved agreement.
+            {t.dealProtection.commissionBody}
           </p>
         </div>
 
         <div className="card space-y-2">
           <p className="text-slate-400">
-            Subscription Fees
+            {t.dealProtection.subscriptionTitle}
           </p>
 
           <p className="text-2xl font-bold">
-            Separate
+            {t.dealProtection.subscriptionBadge}
           </p>
 
           <p className="text-sm text-slate-300">
-            Subscription payments are independent
-            of transaction-based commissions.
+            {t.dealProtection.subscriptionBody}
           </p>
         </div>
       </div>
@@ -113,17 +111,17 @@ export default function DealProtectionPage() {
       <div className="card space-y-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-2xl font-bold">
-            Brokerage Agreement
+            {t.dealProtection.agreementTitle}
           </h2>
 
           <span className="rounded-full bg-amber-500/20 px-4 py-2 text-sm text-amber-300">
-            Draft - Legal Review Required
+            {t.dealProtection.draftReview}
           </span>
         </div>
 
         {loading ? (
           <p className="text-slate-300">
-            Loading agreement...
+            {t.dealProtection.loading}
           </p>
         ) : error ? (
           <p role="alert" className="text-red-400">
@@ -132,7 +130,7 @@ export default function DealProtectionPage() {
         ) : agreement ? (
           <>
             <p className="text-sm text-slate-400">
-              Version: {agreement.version}
+              {t.dealProtection.version}: {agreement.version}
             </p>
 
             <h3 className="text-xl font-semibold">
@@ -147,13 +145,11 @@ export default function DealProtectionPage() {
 
             <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4">
               <p className="font-semibold text-amber-300">
-                Not Active - For Legal Review Only
+                {t.dealProtection.notActive}
               </p>
 
               <p className="mt-2 text-sm text-slate-300">
-                This document is a development draft.
-                No binding acceptance or commission
-                obligation is created by viewing it.
+                {t.dealProtection.draftViewNote}
               </p>
             </div>
 
@@ -162,32 +158,27 @@ export default function DealProtectionPage() {
               disabled
               className="cursor-not-allowed rounded-lg bg-slate-700 px-6 py-3 font-semibold text-slate-400"
             >
-              Agreement Acceptance Unavailable
+              {t.dealProtection.acceptanceUnavailable}
             </button>
           </>
         ) : (
           <p className="text-slate-300">
-            The draft agreement is not available
-            for public viewing yet.
+            {t.dealProtection.draftUnavailable}
           </p>
         )}
       </div>
 
       <div className="card space-y-3">
         <h2 className="text-xl font-bold">
-          How Nexus Deal Protection Works
+          {t.dealProtection.howTitle}
         </h2>
 
         <p className="text-slate-300">
-          Once the legal agreement is approved,
-          Nexus will record agreement acceptance,
-          investor introductions and qualifying
-          transactions to support commission tracking.
+          {t.dealProtection.howBody}
         </p>
 
         <p className="text-sm text-slate-400">
-          International availability will depend
-          on applicable laws and licensing.
+          {t.dealProtection.howLegal}
         </p>
       </div>
     </main>

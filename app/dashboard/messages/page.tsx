@@ -5,7 +5,8 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { copy } from '@/lib/copy'
+import { useT } from '@/lib/i18n/provider'
+import EmptyState from '@/components/ui/EmptyState'
 import { loadUserLabels } from '@/lib/users'
 
 type Conversation = {
@@ -21,6 +22,7 @@ type Listing = {
 }
 
 export default function MessagesIndexPage() {
+  const t = useT()
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState('')
@@ -34,7 +36,7 @@ export default function MessagesIndexPage() {
 
     async function load() {
       if (!supabase) {
-        setMessage(copy.listingForm.configure)
+        setMessage(t.common.supabase)
         setLoading(false)
         return
       }
@@ -82,7 +84,7 @@ export default function MessagesIndexPage() {
       const otherIds = chats.map(chat =>
         chat.owner_id === currentUserId ? chat.investor_id : chat.owner_id
       )
-      const resolved = await loadUserLabels(supabase, otherIds)
+      const resolved = await loadUserLabels(supabase, otherIds, t.user)
       if (active) setLabels(resolved)
 
       setLoading(false)
@@ -98,14 +100,14 @@ export default function MessagesIndexPage() {
     <section className="space-y-8 py-8">
       <div className="space-y-3">
         <Link href="/dashboard" className="text-amber-300">
-          ← {copy.messagesIndex.back}
+          <span className="inline-block rtl:rotate-180">←</span> {t.common.backToDashboard}
         </Link>
-        <h1 className="text-3xl font-bold">{copy.messagesIndex.title}</h1>
-        <p className="text-slate-300">{copy.messagesIndex.intro}</p>
+        <h1 className="text-3xl font-bold">{t.messagesIndex.title}</h1>
+        <p className="text-slate-300">{t.messagesIndex.intro}</p>
       </div>
 
       {loading ? (
-        <p>{copy.messagesIndex.loading}</p>
+        <p>{t.messagesIndex.loading}</p>
       ) : (
         <>
           {message && (
@@ -115,7 +117,7 @@ export default function MessagesIndexPage() {
           )}
 
           {conversations.length === 0 ? (
-            <div className="card text-slate-300">{copy.messagesIndex.empty}</div>
+            <EmptyState title={t.messagesIndex.empty} />
           ) : (
             <div className="space-y-4">
               {conversations.map(chat => {
@@ -125,7 +127,7 @@ export default function MessagesIndexPage() {
                     : chat.owner_id
                 const title =
                   (chat.listing_id && listings[chat.listing_id]) ||
-                  copy.messagesIndex.unknownListing
+                  t.messagesIndex.unknownListing
 
                 return (
                   <div key={chat.id} className="card flex flex-wrap items-center justify-between gap-4">
@@ -136,7 +138,7 @@ export default function MessagesIndexPage() {
                       </p>
                     </div>
                     <Link href={`/dashboard/messages/${chat.id}`} className="btn">
-                      {copy.messagesIndex.open}
+                      {t.messagesIndex.open}
                     </Link>
                   </div>
                 )
