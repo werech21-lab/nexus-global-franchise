@@ -1,5 +1,5 @@
 import { ImageResponse } from 'next/og'
-import { copy } from '@/lib/copy'
+import { SITE_DESCRIPTION, SITE_NAME } from '@/lib/seo'
 
 export const size = { width: 1200, height: 630 }
 export const contentType = 'image/png'
@@ -20,13 +20,13 @@ export default function OpenGraphImage() {
         }}
       >
         <div style={{ color: '#d4ac65', fontSize: 28, marginBottom: 24 }}>
-          {copy.site.name}
+          Nexus
         </div>
         <div style={{ fontSize: 64, fontWeight: 700, lineHeight: 1.15 }}>
-          {copy.home.title}
+          {SITE_NAME}
         </div>
         <div style={{ marginTop: 28, fontSize: 28, color: '#cbd5e1', maxWidth: 900 }}>
-          {copy.site.tagline}
+          {SITE_DESCRIPTION}
         </div>
       </div>
     ),
