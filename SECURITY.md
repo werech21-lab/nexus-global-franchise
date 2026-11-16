@@ -23,7 +23,7 @@ This document lists **manual steps in the Supabase dashboard**. They are not app
 
 4. **Multi-factor authentication (MFA)**
    - Enable MFA (TOTP) in **Authentication** settings.
-   - Ask administrators to enroll MFA after it is enabled. The app does not yet include an MFA enrollment UI.
+   - Ask administrators to enroll MFA after it is enabled. Phase 3 adds an in-app TOTP enrollment/verify UI at `/account`. If an admin has MFA enrolled, `/admin` requires AAL2.
 
 5. **Auth rate limits and CAPTCHA**
    - Review **Authentication** rate limits for sign-in, sign-up, and password recovery.
@@ -69,7 +69,7 @@ The application now uses cookie-based sessions (`@supabase/ssr`) and middleware 
 
 4. **المصادقة الثنائية (MFA)**
    - فعّل MFA (TOTP) من إعدادات المصادقة.
-   - اطلب من المشرفين تفعيلها بعد تشغيلها. التطبيق لا يحتوي بعد على واجهة لتسجيل MFA.
+   - اطلب من المشرفين تفعيلها بعد تشغيلها. المرحلة 3 تضيف واجهة تسجيل/تحقق TOTP في `/account`. إذا كان المشرف قد فعّل MFA، تتطلب `/admin` مستوى AAL2.
 
 5. **حدود المعدل وCAPTCHA**
    - راجع حدود معدل تسجيل الدخول والتسجيل واستعادة الكلمة.

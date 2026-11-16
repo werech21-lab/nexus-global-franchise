@@ -31,7 +31,7 @@ export default function SiteHeader() {
   }, [open])
 
   return (
-    <header className="border-b border-slate-700 p-5">
+    <header className="sticky top-0 z-40 border-b border-slate-700 bg-[#081325]/95 p-4 backdrop-blur sm:p-5">
       <nav
         className="mx-auto flex max-w-6xl items-center justify-between gap-4"
         aria-label="Main"
@@ -69,11 +69,11 @@ export default function SiteHeader() {
       {open && (
         <div
           id="mobile-menu"
-          className="mx-auto mt-4 max-w-6xl space-y-2 rounded-2xl border border-slate-700 bg-[#102039] p-4 md:hidden"
+          className="mx-auto mt-3 max-w-6xl space-y-1 rounded-2xl border border-slate-700 bg-[#102039] p-3 shadow-2xl md:hidden"
         >
           <Link
             href="/"
-            className="block rounded-xl px-3 py-3"
+            className="block rounded-xl px-4 py-3 text-base"
             onClick={() => setOpen(false)}
           >
             {t.nav.home}
@@ -82,12 +82,26 @@ export default function SiteHeader() {
             <Link
               key={link.href}
               href={link.href}
-              className="block rounded-xl px-3 py-3"
+              className="block rounded-xl px-4 py-3 text-base"
               onClick={() => setOpen(false)}
             >
               {link.label}
             </Link>
           ))}
+          <Link
+            href="/dashboard/saved"
+            className="block rounded-xl px-4 py-3 text-base"
+            onClick={() => setOpen(false)}
+          >
+            {t.nav.saved}
+          </Link>
+          <Link
+            href="/dashboard/my-inquiries"
+            className="block rounded-xl px-4 py-3 text-base"
+            onClick={() => setOpen(false)}
+          >
+            {t.nav.myInquiries}
+          </Link>
         </div>
       )}
     </header>
