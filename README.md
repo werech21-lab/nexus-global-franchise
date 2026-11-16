@@ -14,3 +14,6 @@ Push to GitHub, import the repository into Vercel, and configure the same enviro
 
 ## Security
 Never commit `.env.local` or Supabase service_role/secret keys. Row Level Security policies enforce ownership. New listings start as drafts and require publication by the owner; moderation should be added before a public launch.
+
+## Security
+See `SECURITY.md` for password reset, MFA, and other manual Supabase dashboard steps. The app includes forgot/reset password pages, a signed-in change-password page at `/account`, cookie-based sessions, and middleware that protects `/dashboard`, `/admin`, and `/account`.
