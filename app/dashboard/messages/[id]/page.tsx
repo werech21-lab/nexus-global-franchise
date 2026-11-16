@@ -6,6 +6,8 @@ import type { FormEvent, KeyboardEvent } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { useLocale, useT } from '@/lib/i18n/provider'
+import { formatDateTime } from '@/lib/format'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
 type Message = {
@@ -29,6 +31,8 @@ type TypingPayload = {
 }
 
 export default function ConversationPage() {
+  const t = useT()
+  const locale = useLocale()
   const params = useParams()
   const conversationId = params.id as string
 
@@ -78,7 +82,7 @@ export default function ConversationPage() {
       setUserId('')
 
       if (!supabase) {
-        setError('Supabase is not configured.')
+        setError(t.common.supabase)
         setLoading(false)
         return
       }
@@ -91,7 +95,7 @@ export default function ConversationPage() {
       if (!active) return
 
       if (authError || !auth.user) {
-        setError('Please sign in to view this conversation.')
+        setError(t.chat.signIn)
         setLoading(false)
         return
       }
@@ -105,7 +109,7 @@ export default function ConversationPage() {
       if (!active) return
 
       if (chatError || !chat) {
-        setError('Conversation not found or access denied.')
+        setError(t.chat.notFoundOrDenied)
         setLoading(false)
         return
       }
@@ -117,7 +121,7 @@ export default function ConversationPage() {
         currentChat.owner_id !== currentUserId &&
         currentChat.investor_id !== currentUserId
       ) {
-        setError('You do not have access to this conversation.')
+        setError(t.chat.noAccess)
         setLoading(false)
         return
       }
@@ -337,7 +341,7 @@ export default function ConversationPage() {
     const text = body.trim()
 
     if (text.length > 5000) {
-      setError('Message is too long.')
+      setError(t.chat.tooLong)
       return
     }
 
@@ -396,7 +400,7 @@ export default function ConversationPage() {
         href="/dashboard/inquiries"
         className="mb-4 inline-block text-sm font-medium text-amber-300 hover:text-amber-200"
       >
-        ← Back to Inquiries
+        <span className="inline-block rtl:rotate-180">←</span> {t.chat.back}
       </Link>
 
       <div className="overflow-hidden rounded-2xl border border-slate-700 bg-[#102039] text-white shadow-xl">
@@ -408,40 +412,40 @@ export default function ConversationPage() {
 
             <div>
               <h1 className="text-xl font-bold">
-                Nexus Secure Messenger
+                {t.chat.secureTitle}
               </h1>
 
               <p className="mt-1 text-xs text-slate-400">
-                Private conversations inside Nexus Global Franchise
+                {t.chat.secureIntro}
               </p>
             </div>
           </div>
 
           <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-emerald-700 bg-emerald-900/30 px-3 py-1 text-xs text-emerald-300">
             <span className="h-2 w-2 rounded-full bg-emerald-400" />
-            Private conversation
+            {t.chat.privateConversation}
           </div>
         </header>
 
         {loading ? (
           <div className="p-10 text-center text-slate-400">
-            Loading conversation...
+            {t.chat.loading}
           </div>
         ) : !conversation ? (
           <div className="p-8 text-red-400">
-            {error || 'Conversation not found.'}
+            {error || t.chat.notFound}
           </div>
         ) : (
           <>
             <div className="border-b border-slate-700 px-5 py-3 text-xs text-slate-400">
-              Keep negotiations and agreements on Nexus.
-              {isOwner ? ' You are the opportunity owner.' : ' You are the investor.'}
+              {t.chat.keepOnNexus}{' '}
+              {isOwner ? t.chat.youAreOwner : t.chat.youAreInvestor}
             </div>
 
             <div className="h-[420px] space-y-4 overflow-y-auto bg-[#09182D] p-5">
               {messages.length === 0 && (
                 <div className="py-16 text-center text-sm text-slate-400">
-                  No messages yet. Start the conversation.
+                  {t.chat.empty}
                 </div>
               )}
 
@@ -451,7 +455,7 @@ export default function ConversationPage() {
                 return (
                   <div
                     key={item.id}
-                    className={`flex ${mine ? 'justify-end' : 'justify-start'}`}
+                    className={`flex ${mine ? 'justify-end rtl:justify-start' : 'justify-start rtl:justify-end'}`}
                   >
                     <div
                       className={`max-w-[85%] rounded-2xl px-4 py-3 shadow-sm ${
@@ -465,7 +469,7 @@ export default function ConversationPage() {
                           mine ? 'text-slate-800' : 'text-amber-300'
                         }`}
                       >
-                        {mine ? 'You' : 'Other participant'}
+                        {mine ? t.chat.you : t.chat.other}
                       </p>
 
                       <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
@@ -473,11 +477,11 @@ export default function ConversationPage() {
                       </p>
 
                       <p
-                        className={`mt-2 text-right text-[10px] ${
+                        className={`mt-2 text-end text-[10px] ${
                           mine ? 'text-slate-700' : 'text-slate-400'
                         }`}
                       >
-                        {new Date(item.created_at).toLocaleString()}
+                        {formatDateTime(item.created_at, locale)}
                       </p>
                     </div>
                   </div>
@@ -488,7 +492,7 @@ export default function ConversationPage() {
                 <div className="flex justify-start">
                   <div className="rounded-2xl rounded-bl-sm bg-slate-700 px-4 py-3">
                     <p className="mb-2 text-xs text-amber-300">
-                      Other participant is typing...
+                      {t.chat.otherTyping}
                     </p>
 
                     <div className="flex gap-1">
@@ -511,7 +515,7 @@ export default function ConversationPage() {
                 htmlFor="message"
                 className="block text-sm font-semibold"
               >
-                Your message
+                {t.chat.yourMessage}
               </label>
 
               <textarea
@@ -520,7 +524,7 @@ export default function ConversationPage() {
                 onChange={event => handleTyping(event.target.value)}
                 onKeyDown={handleKeyDown}
                 onBlur={stopTyping}
-                placeholder="Write your message here..."
+                placeholder={t.chat.placeholder}
                 maxLength={5000}
                 rows={3}
                 className="w-full resize-y rounded-xl border border-slate-600 bg-slate-800 p-4 text-sm text-white outline-none placeholder:text-slate-400 focus:border-amber-400"
@@ -529,7 +533,7 @@ export default function ConversationPage() {
               />
 
               <div className="flex items-center justify-between text-xs text-slate-400">
-                <span>Enter to send · Shift + Enter for new line</span>
+                <span>{t.chat.enterHint}</span>
                 <span>{body.length}/5000</span>
               </div>
 
@@ -539,13 +543,13 @@ export default function ConversationPage() {
                 </p>
               )}
 
-              <div className="flex justify-end">
+              <div className="flex justify-end rtl:justify-start">
                 <button
                   type="submit"
                   disabled={sending || !body.trim()}
                   className="rounded-xl bg-[#E3B967] px-6 py-3 text-sm font-bold text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {sending ? 'Sending...' : 'Send Message →'}
+                  {sending ? t.chat.sending : t.chat.send}
                 </button>
               </div>
             </form>
