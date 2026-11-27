@@ -154,6 +154,7 @@ export default function CommissionsPage() {
               const statusLabel = paymentStatusLabel(payment.status, {
                 pending: t.commissions.pending,
                 paid: t.commissions.paid,
+                awaiting: t.bank.statusAwaiting,
                 none: t.common.notSet,
               })
 
