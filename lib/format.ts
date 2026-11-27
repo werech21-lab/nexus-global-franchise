@@ -53,11 +53,12 @@ export function formatDateTime(
 
 export function paymentStatusLabel(
   status: string | null | undefined,
-  labels: { pending: string; paid: string; none: string }
+  labels: { pending: string; paid: string; none: string; awaiting?: string }
 ): string {
   if (!status) return labels.none
   if (status === 'pending') return labels.pending
   if (status === 'paid') return labels.paid
+  if (status === 'awaiting_confirmation' && labels.awaiting) return labels.awaiting
   return status.replace(/_/g, ' ')
 }
 

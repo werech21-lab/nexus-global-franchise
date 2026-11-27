@@ -24,6 +24,11 @@ export type CommissionPayment = {
   status: string
   due_at: string | null
   paid_at: string | null
+  payment_provider?: string | null
+  bank_transfer_reference?: string | null
+  bank_transfer_date?: string | null
+  bank_transfer_submitted_at?: string | null
+  bank_transfer_review_note?: string | null
 }
 
 export type PaymentWithDeal = CommissionPayment & {
