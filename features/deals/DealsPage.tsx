@@ -11,6 +11,7 @@ import EmptyState from '@/components/ui/EmptyState'
 import Alert from '@/components/ui/Alert'
 import StatCard from '@/components/ui/StatCard'
 import Badge from '@/components/ui/Badge'
+import BankTransferPanel from './BankTransferPanel'
 import type { CommissionPayment, Deal, DealWithRole } from '@/types/deal'
 
 type DealRow = DealWithRole & {
@@ -72,7 +73,9 @@ export default function DealsPage() {
             .in('id', conversationIds),
           supabase
             .from('commission_payments')
-            .select('id, deal_id, status, due_at, paid_at')
+            .select(
+              'id, deal_id, status, due_at, paid_at, payment_provider, bank_transfer_reference, bank_transfer_date, bank_transfer_submitted_at, bank_transfer_review_note'
+            )
             .in('deal_id', dealIds),
         ])
 
@@ -305,6 +308,7 @@ export default function DealsPage() {
               const paymentLabel = paymentStatusLabel(deal.payment?.status, {
                 pending: t.deals.paymentPending,
                 paid: t.deals.paymentPaid,
+                awaiting: t.bank.statusAwaiting,
                 none: t.deals.paymentNone,
               })
 
@@ -402,6 +406,22 @@ export default function DealsPage() {
                       </p>
                     ) : null}
                     <p className="mt-2 text-sm text-slate-400">{t.deals.paymentNote}</p>
+                    {deal.payment?.status === 'pending' && deal.payment.bank_transfer_review_note ? (
+                      <Alert tone="warning" role="status">
+                        <p className="font-semibold">{t.bank.rejectedTitle}</p>
+                        <p className="mt-1 text-sm">{deal.payment.bank_transfer_review_note}</p>
+                      </Alert>
+                    ) : null}
+                    {deal.payment?.status === 'awaiting_confirmation' ? (
+                      <Alert tone="info" role="status">
+                        <p className="font-semibold">{t.bank.awaitingTitle}</p>
+                        <p className="mt-1 text-sm">
+                          {interpolate(t.bank.awaitingBody, {
+                            reference: deal.payment.bank_transfer_reference ?? '—',
+                          })}
+                        </p>
+                      </Alert>
+                    ) : null}
                     {deal.status === 'completed' && deal.payment?.status === 'pending' ? (
                       deal.isOwner ? (
                         <div className="mt-4 space-y-2">
@@ -414,6 +434,13 @@ export default function DealsPage() {
                             {payingId === deal.id ? t.deals.payingCommission : t.deals.payCommission}
                           </button>
                           <p className="text-xs text-slate-400">{t.deals.payNote}</p>
+                          <BankTransferPanel
+                            paymentId={deal.payment.id}
+                            onSubmitted={async () => {
+                              await loadDeals()
+                              setSuccess(t.bank.submittedOk)
+                            }}
+                          />
                         </div>
                       ) : (
                         <p className="mt-2 text-sm text-slate-400">{t.deals.payOwnerOnly}</p>

@@ -8,6 +8,7 @@ import { formatMoney } from '@/lib/format'
 import PageShell from '@/components/ui/PageShell'
 import Alert from '@/components/ui/Alert'
 import StatCard from '@/components/ui/StatCard'
+import BankTransfersPanel from './BankTransfersPanel'
 
 type Deal = {
   id: string
@@ -138,6 +139,8 @@ export default function AdminDashboard() {
               tone="warning"
             />
           </div>
+
+          <BankTransfersPanel />
 
           <div>
             <h2 className="mb-4 text-2xl font-bold">{t.admin.management}</h2>
